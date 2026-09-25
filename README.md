@@ -4,7 +4,7 @@
 
 # Silicon Valley Rocket Fuel (SVRF)
 
-**The merge queue built for agent swarms — batches, bisects, and proves every landing.**
+**The merge queue built for AI agent swarms — batches, bisects, and proves every landing.**
 
 [![CI](https://github.com/nybarius/SVRF/actions/workflows/ci.yml/badge.svg)](https://github.com/nybarius/SVRF/actions/workflows/ci.yml)
 [![License: PolyForm Shield 1.0.0](https://img.shields.io/badge/license-PolyForm%20Shield%201.0.0-blue.svg)](LICENSE)
@@ -12,11 +12,13 @@
 ![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-3776ab.svg)
 ![No dependencies](https://img.shields.io/badge/dependencies-none-brightgreen.svg)
 
-SVRF is a merge train for repositories where agents open pull requests faster than CI can
-gate them one by one. It watches a GitHub repository, folds compatible ready pull requests
-together, runs **your** gate command once on the folded tree, bisects a red batch down to
-the pull request that broke it, and lands the rest with ordinary merge commits, checking
-after every merge that the base branch holds exactly the tree that was gated. The
+SVRF is a merge queue for AI coding agents: when Claude Code, Codex or another swarm of
+agents opens pull requests faster than CI can gate them one by one, SVRF is the merge train
+that keeps up. It runs as a GitHub Actions workflow, a CLI, or a container; watches a GitHub
+repository; folds compatible ready pull requests together; runs **your** gate command once
+on the folded tree; bisects a red batch down to the pull request that broke it; and lands
+the rest with ordinary merge commits, checking after every merge that the base branch holds
+exactly the tree that was gated. The
 scheduling technique inside is a *braided train*: pull requests that do not conflict are
 braided into families that gate in parallel; the ones that do conflict wait for a later
 round.
@@ -123,7 +125,9 @@ And `svrf dashboard` builds a static site from the round receipts: live queue, t
 gates and wall time per PR, a batch timeline, the bisection tree of every red batch, holds,
 and the landed-tree = gated-tree tally. One self-contained `index.html`: open it from disk
 or publish it to GitHub Pages ([docs/DASHBOARD.md](docs/DASHBOARD.md)). Shown here on
-anonymized receipts from a real day of runs (`make dashboard-sample`):
+anonymized receipts from a real day of runs (`make dashboard-sample`); SVRF's own
+[live dashboard](https://nybarius.github.io/SVRF/dashboard/) runs the same way against its
+own production train (see [docs/CASE_STUDY.md](docs/CASE_STUDY.md)):
 
 <p align="center"><img src="docs/img/dashboard.png" alt="The SVRF dashboard: totals, live queue, landed-tree tally, throughput, gates per PR and wall time per PR" width="100%"></p>
 
