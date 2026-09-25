@@ -138,31 +138,55 @@ def _trees(receipts: list[dict]) -> list[dict]:
 
 
 def _timeline(receipts: list[dict]) -> list[dict]:
+    """One bar per gate run: when its batch could first have been gated (the round start;
+    for a bisected half, when its parent's result came back; for a batch of a later
+    replanning round, the last landing or gate of the rounds before), the gate itself, and
+    the last merge of the batch."""
     bars = []
     for r in receipts:
-        queued = _ts(r.get("started"))
-        by_id = {f["id"]: f for f in r.get("families", [])}
+        round_start = _ts(r.get("started"))
+        gates = r.get("gates", [])
+        round_of = {fid: i for i, x in enumerate(r.get("rounds", [])) for fid in x.get("families", [])}
         landed: dict[str, float] = {}
         for m in r.get("merges", []):
             if m.get("at") is not None:
                 landed[m.get("family")] = max(landed.get(m.get("family"), 0.0), float(m["at"]))
-        gates = r.get("gates", [])
         ended: dict[str, float] = {}
-        for g in gates:
-            if g.get("started") is not None:
-                ended[g.get("family")] = float(g["started"]) + float(g.get("seconds") or 0)
-        for g in _fresh_gates(r):
-            if g.get("started") is None:
+        done: list[tuple[int, float]] = []   # (round index, when a batch was finished)
+        for f in r.get("families", []):
+            g = gates[f["gate"]] if isinstance(f.get("gate"), int) and f["gate"] < len(gates) else None
+            fid, parent = f.get("id"), f.get("parent")
+            if parent:
+                queued = ended.get(parent, round_start)
+            else:
+                k = round_of.get(fid, 0)
+                earlier = [t for i, t in done if i < k]
+                queued = max(earlier) if k and earlier else round_start
+            if g is None or g.get("started") is None:
+                continue
+            if "reused" in g:
+                # a tree already known red: concluded as soon as the batch existed
+                ended[fid] = queued if queued is not None else float(g["started"])
                 continue
             start = float(g["started"])
-            family = by_id.get(g.get("family"), {})
-            # a bisected half exists from the moment its parent's gate came back red
-            waited_from = ended.get(family.get("parent"), queued) if family.get("parent") else queued
-            bars.append({"round": r.get("started"), "family": g.get("family"), "prs": list(g.get("prs", [])),
-                         "status": _family_status(family, r) or ("GREEN" if g.get("green") else "RED"),
-                         "green": bool(g.get("green")), "queued": waited_from, "start": start,
-                         "end": start + float(g.get("seconds") or 0), "landed": landed.get(g.get("family"))})
+            end = start + float(g.get("seconds") or 0)
+            ended[fid] = end
+            done.append((_root_round(f, r, round_of), max(end, landed.get(fid) or 0.0)))
+            bars.append({"round": r.get("started"), "family": fid, "prs": list(g.get("prs", [])),
+                         "status": _family_status(f, r) or ("GREEN" if g.get("green") else "RED"),
+                         "green": bool(g.get("green")), "queued": queued, "start": start, "end": end,
+                         "landed": landed.get(fid)})
     return bars
+
+
+def _root_round(family: dict, receipt: dict, round_of: dict) -> int:
+    """The replanning round a bisected family belongs to: its root's."""
+    by_id = {f["id"]: f for f in receipt.get("families", [])}
+    seen = set()
+    while family.get("parent") in by_id and family["id"] not in seen:
+        seen.add(family["id"])
+        family = by_id[family["parent"]]
+    return round_of.get(family.get("id"), 0)
 
 
 def _live(r: dict | None) -> dict | None:
