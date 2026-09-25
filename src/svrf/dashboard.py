@@ -100,6 +100,18 @@ def _throughput(receipts: list[dict]) -> list[dict]:
     return rows
 
 
+def _family_status(family: dict, receipt: dict) -> str | None:
+    """A family's status; a TREE_MISMATCH whose landed trees were never read (older
+    receipt writers) is the unread case, which is retried and is not a mismatch."""
+    status = family.get("status")
+    if status == "TREE_MISMATCH":
+        mine = [m for m in receipt.get("merges", []) if m.get("family") == family.get("id")]
+        if mine and all(m.get("observed_tree") is None or m.get("observed_tree") == m.get("gated_tree")
+                        for m in mine):
+            return "LANDED_TREE_UNREAD"
+    return status
+
+
 def _trees(receipts: list[dict]) -> list[dict]:
     out = []
     for r in receipts:
@@ -111,7 +123,7 @@ def _trees(receipts: list[dict]) -> list[dict]:
         nodes = {}
         for f in families:
             g = gates[f["gate"]] if isinstance(f.get("gate"), int) and f["gate"] < len(gates) else None
-            nodes[f["id"]] = {"id": f["id"], "prs": list(f.get("prs", [])), "status": f.get("status"),
+            nodes[f["id"]] = {"id": f["id"], "prs": list(f.get("prs", [])), "status": _family_status(f, r),
                               "green": bool(g and g.get("green")), "seconds": g.get("seconds") if g else None,
                               "reused": bool(g and "reused" in g),
                               "held": [n for n in f.get("prs", []) if n in held and len(f.get("prs", [])) == 1],
@@ -134,14 +146,21 @@ def _timeline(receipts: list[dict]) -> list[dict]:
         for m in r.get("merges", []):
             if m.get("at") is not None:
                 landed[m.get("family")] = max(landed.get(m.get("family"), 0.0), float(m["at"]))
+        gates = r.get("gates", [])
+        ended: dict[str, float] = {}
+        for g in gates:
+            if g.get("started") is not None:
+                ended[g.get("family")] = float(g["started"]) + float(g.get("seconds") or 0)
         for g in _fresh_gates(r):
             if g.get("started") is None:
                 continue
             start = float(g["started"])
             family = by_id.get(g.get("family"), {})
+            # a bisected half exists from the moment its parent's gate came back red
+            waited_from = ended.get(family.get("parent"), queued) if family.get("parent") else queued
             bars.append({"round": r.get("started"), "family": g.get("family"), "prs": list(g.get("prs", [])),
-                         "status": family.get("status") or ("GREEN" if g.get("green") else "RED"),
-                         "green": bool(g.get("green")), "queued": queued, "start": start,
+                         "status": _family_status(family, r) or ("GREEN" if g.get("green") else "RED"),
+                         "green": bool(g.get("green")), "queued": waited_from, "start": start,
                          "end": start + float(g.get("seconds") or 0), "landed": landed.get(g.get("family"))})
     return bars
 
