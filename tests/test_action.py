@@ -65,6 +65,22 @@ class ActionEntryScript(unittest.TestCase):
         self.assertNotEqual(done.returncode, 0)
         self.assertIn("config", done.stderr)
 
+    def test_it_runs_init_first_when_the_config_file_does_not_exist_yet(self):
+        missing = self.tmp / "auto-svrf.toml"
+        done = self.run_script({"GH_TOKEN": "test-token", "SVRF_CONFIG": str(missing),
+                                "GITHUB_REPOSITORY": "owner/name"})
+        self.assertEqual(done.returncode, 0, done.stderr)
+        calls = self.calls.read_text(encoding="utf-8")
+        self.assertIn(f"svrf init --yes --config {missing} --repo owner/name", calls)
+        self.assertIn(f"svrf --config {missing} run --once", calls)
+
+    def test_it_does_not_run_init_when_the_config_file_already_exists(self):
+        done = self.run_script({"GH_TOKEN": "test-token", "SVRF_CONFIG": str(self.config),
+                                "GITHUB_REPOSITORY": "owner/name"})
+        self.assertEqual(done.returncode, 0, done.stderr)
+        calls = self.calls.read_text(encoding="utf-8")
+        self.assertNotIn("svrf init", calls)
+
 
 if __name__ == "__main__":
     unittest.main()

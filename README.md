@@ -15,15 +15,8 @@ per hour on the same machine, 44 s of wall time per merged PR, 0.88 gates per PR
 
 ## Quickstart
 
-```sh
-docker build -t svrf .
-cp svrf.example.toml svrf.toml   # set repo and gate.commands
-docker run -d --name svrf -e GH_TOKEN -v "$PWD/svrf.toml:/config/svrf.toml:ro" -v svrf-state:/var/lib/svrf svrf
-docker logs -f svrf
-```
-
-`GH_TOKEN` needs permission to push branches and merge pull requests
-([docs/GITHUB_SETUP.md](docs/GITHUB_SETUP.md)). Try it with no GitHub at all first:
+Three steps, each copy-pasteable. Try it with no GitHub at all first, though, if you'd
+rather see it work before pointing it at a real repository:
 
 ```sh
 python3 demo/run_demo.py
@@ -35,10 +28,73 @@ another), and runs the real train code against a local stand-in for the GitHub A
 [Recorded cast of the demo running](docs/demo.cast) — an asciinema v2 recording; play it
 with `asciinema play docs/demo.cast` ([asciinema.org](https://asciinema.org)).
 
-Without Docker: `pip install .` (Python 3.11+, git, and the `gh` CLI), then
-`svrf --config svrf.toml run --once`, or install the systemd timer with
-`bash systemd/install.sh --enable`. On GitHub Actions instead of your own machine or
-systemd: see [docs/ACTION.md](docs/ACTION.md).
+### 1. Install
+
+Either add the published GitHub Action to your repository (works with no local install
+and no `svrf.toml` yet — it detects your project the first time it runs):
+
+```yaml
+# .github/workflows/svrf.yml
+name: svrf
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  pull_request:
+    types: [ready_for_review]
+jobs:
+  round:
+    runs-on: ubuntu-latest
+    concurrency: { group: svrf-round, cancel-in-progress: false }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: nybarius/SVRF@v0.1.0
+        with:
+          github-token: ${{ secrets.SVRF_TOKEN }}   # see docs/GITHUB_SETUP.md for scopes
+```
+
+or install the CLI to run it yourself (on your own machine, a container, or a self-hosted
+runner):
+
+```sh
+pipx install svrf   # or: pip install svrf
+```
+
+Either way, `GH_TOKEN`/`secrets.SVRF_TOKEN` needs permission to push branches and merge
+pull requests ([docs/GITHUB_SETUP.md](docs/GITHUB_SETUP.md)).
+
+### 2. Configure
+
+The Action above needs nothing further. With the CLI, generate `svrf.toml` by detection
+(project type, gate command, base branch, repository), asking at most three questions
+with sensible defaults:
+
+```sh
+svrf init
+```
+
+`svrf init --yes` accepts every detected default without asking; pass `--repo`, `--base`,
+or `--gate` to override any one of them. It never overwrites an existing `svrf.toml` or
+workflow file unless you pass `--force`. Run `svrf doctor` afterwards to check the token's
+scopes, branch-protection interplay, and that the gate command is actually runnable.
+
+### 3. Run
+
+```sh
+svrf --config svrf.toml run --once
+```
+
+or watch continuously (`svrf watch`), or install the systemd timer
+(`bash systemd/install.sh --enable`), or run in Docker:
+
+```sh
+docker build -t svrf .
+docker run -d --name svrf -e GH_TOKEN -v "$PWD/svrf.toml:/config/svrf.toml:ro" -v svrf-state:/var/lib/svrf svrf
+docker logs -f svrf
+```
+
+See [docs/ACTION.md](docs/ACTION.md) for the Action's inputs and zero-config behavior, and
+[docs/AGENTS.md](docs/AGENTS.md) for `svrf why`/`svrf status --json`/`svrf mcp`, so a
+coding agent whose pull request gets held can find out why and fix it itself.
 
 ## Commands
 
