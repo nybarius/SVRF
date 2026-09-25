@@ -33,23 +33,67 @@ and the "after" window was arrival-bound: details and caveats in
 
 ## Quickstart
 
-**1. Watch it work, no GitHub needed.** A fake agent swarm opens eight pull requests
-against a local bare repository (two conflicting, one failing its own test, one committed
-out of order, one stacked on another) and the real train code lands them:
+**0. Watch it work first (optional, no GitHub needed).** A fake agent swarm opens eight
+pull requests against a local bare repository (two conflicting, one failing its own
+test, one committed out of order, one stacked on another), and the real train code
+lands them:
 
 ```sh
 python3 demo/run_demo.py
 ```
 
-**2. Point it at your repository.** Set `repo` and `gate.commands` (the command that must
-pass for a tree to land); presets for Lean, Python and Node are in [presets/](presets/).
+**1. Install.** Either add the published GitHub Action. It needs no local install and no
+`svrf.toml`: on its first run it detects your project and gate command.
 
-```sh
-cp svrf.example.toml svrf.toml
+```yaml
+# .github/workflows/svrf.yml
+name: svrf
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  pull_request:
+    types: [ready_for_review]
+jobs:
+  round:
+    runs-on: ubuntu-latest
+    concurrency: { group: svrf-round, cancel-in-progress: false }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: nybarius/SVRF@v0.1.0
+        with:
+          github-token: ${{ secrets.SVRF_TOKEN }}   # see docs/GITHUB_SETUP.md for scopes
 ```
 
-**3. Run it.** `GH_TOKEN` needs permission to push branches and merge pull requests
-([docs/GITHUB_SETUP.md](docs/GITHUB_SETUP.md)).
+Or install the CLI, to run it on your own machine, in a container or on a self-hosted
+runner (Python 3.11+, git and the `gh` CLI):
+
+```sh
+pipx install svrf   # or: pip install svrf
+```
+
+Either way the token (`GH_TOKEN` or `secrets.SVRF_TOKEN`) needs permission to push
+branches and merge pull requests ([docs/GITHUB_SETUP.md](docs/GITHUB_SETUP.md)).
+
+**2. Configure.** The Action needs nothing further. With the CLI, `svrf init` writes
+`svrf.toml` by detection (project type, gate command, base branch, repository), asking at
+most three questions with sensible defaults; `svrf doctor` then checks the token's
+scopes, branch protection, and that the gate command actually runs.
+
+```sh
+svrf init        # --yes accepts every default; --repo/--base/--gate override one
+svrf doctor
+```
+
+`svrf init` never overwrites an existing `svrf.toml` or workflow file unless you pass
+`--force`. Presets for Lean, Python and Node are in [presets/](presets/).
+
+**3. Run.**
+
+```sh
+svrf run --once          # one round; or `svrf watch` to keep going
+```
+
+or install the systemd timer (`bash systemd/install.sh --enable`), or run it in Docker:
 
 ```sh
 docker build -t svrf .
@@ -57,10 +101,9 @@ docker run -d --name svrf -e GH_TOKEN -v "$PWD/svrf.toml:/config/svrf.toml:ro" -
 docker logs -f svrf
 ```
 
-Without Docker: `pip install .` (Python 3.11+, git, and the `gh` CLI), then
-`svrf --config svrf.toml run --once`, or install the systemd timer with
-`bash systemd/install.sh --enable`. On GitHub Actions instead of your own machine:
-[docs/ACTION.md](docs/ACTION.md).
+See [docs/ACTION.md](docs/ACTION.md) for the Action's inputs and zero-config behaviour,
+and [docs/AGENTS.md](docs/AGENTS.md) for `svrf why`, `svrf status --json` and `svrf mcp`:
+a coding agent whose pull request gets held can find out why and fix it itself.
 
 ## What you'll see
 
@@ -88,11 +131,15 @@ anonymized receipts from a real day of runs (`make dashboard-sample`):
 
 | Command | What it does |
 | --- | --- |
+| `svrf init` | detect the project and write `svrf.toml` (and a scheduled workflow); needs no config |
+| `svrf doctor` | read-only checks: token scopes, branch protection, gate command, rate budget |
 | `svrf run --once` | one round: discover, admit, gate, land (what the timer runs) |
 | `svrf watch` | a round every `train.interval_seconds` |
 | `svrf plan --dry-run` | one round that gates and reports but pushes, merges and remembers nothing |
 | `svrf land --prs 12,15` | one batched run over the named pull requests |
-| `svrf status` | held pull requests and the last round, from local state only |
+| `svrf status [--json]` | held pull requests and the last round, from local state only |
+| `svrf why 12` | why one pull request is held or queued, and what to do next ([docs/AGENTS.md](docs/AGENTS.md)) |
+| `svrf mcp` | an MCP server over stdio for coding agents: queue status, why held, requeue ([docs/AGENTS.md](docs/AGENTS.md)) |
 | `svrf forget 12,15` | drop pull requests from the held memory |
 | `svrf dashboard --receipts DIR --out DIR` | a static site from the round receipts ([docs/DASHBOARD.md](docs/DASHBOARD.md)); needs no config or token |
 
