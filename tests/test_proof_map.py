@@ -9,6 +9,7 @@ import unittest
 from fakes import ROOT
 
 from svrf import rules
+from svrf.daemon import Daemon
 from svrf.train import Train
 
 
@@ -27,6 +28,8 @@ class ProofMap(unittest.TestCase):
             check = rule["check"]
             if check.startswith("Train."):
                 self.assertTrue(callable(getattr(Train, check.split(".", 1)[1], None)), name)
+            elif check.startswith("Daemon."):
+                self.assertTrue(callable(getattr(Daemon, check.split(".", 1)[1], None)), name)
             else:
                 self.assertTrue(callable(getattr(rules, check, None)), name)
 

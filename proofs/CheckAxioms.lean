@@ -41,3 +41,7 @@ open BraidedTrain
 #print axioms bk_maximal
 #print axioms conflictCompat_symm
 #print axioms chosen_family_maximal
+#print axioms retarget_headTree
+#print axioms retarget_fold
+#print axioms retarget_lands_same
+#print axioms retarget_after_parent

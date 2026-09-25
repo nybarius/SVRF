@@ -6,4 +6,5 @@ import BraidedTrain.Union
 import BraidedTrain.Stacking
 import BraidedTrain.Bisection
 import BraidedTrain.Families
+import BraidedTrain.Retarget
 import BraidedTrain.Examples
