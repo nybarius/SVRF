@@ -28,3 +28,9 @@ open BraidedTrain
 #print axioms union_order_visible
 #print axioms change_comm
 #print axioms family_perm
+#print axioms stack_lands_gated
+#print axioms stack_fold_through
+#print axioms stacked_verdict_does_not_carry
+#print axioms stackStatus_landed_iff
+#print axioms stackStatus_void_iff
+#print axioms stackStatus_bisected_iff

@@ -65,6 +65,8 @@ states it and the function or method that enforces it in the running train.
 | `repair-mechanical` | `retry_iff` | `repair_class` |
 | `ordered-reland` | `reland_tree` | `reland_class` |
 | `union-merge` | `change_comm` | `union_lines` |
+| `speculative-stacking` | `stack_lands_gated` | `Train.round` |
+| `speculation-void` | `stackStatus_void_iff` | `Train.round` |
 
 `tests/test_proof_map.py` checks this table against `svrf.rules.RULES` directly: every
 rule name and theorem name in the code must also appear in this file, every named theorem
@@ -81,6 +83,7 @@ the test fails otherwise.
 | `BraidedTrain/Interleaving.lean` | Two owners landing path-disjoint families interleaved still land one tree (`interleaved_landing`); when a gate's own read paths miss the other owner's writes, no joint gate is needed (`two_owners_end_gated`). |
 | `BraidedTrain/Reland.lean` | Re-landing a history as tests-then-code-then-docs commits lands the identical tree (`reland_tree`), so any tree-reading gate's verdict is unchanged (`reland_gate`). |
 | `BraidedTrain/Union.lean` | The line-level union merge (`unionLines`, the model of `union_lines`): exact associativity (`unionLines_assoc`), commutation up to line order (`unionLines_comm`, sharp by `union_order_visible`), and at the path level `change_comm` / `family_perm` under `UnionOnlyOverlap`, the union repair's hypothesis. |
+| `BraidedTrain/Stacking.lean` | Speculative stacking: families gated on the fold of every family before them land gated trees at every family boundary (`stack_lands_gated`); a stacked verdict does not carry past a red family (`stack_fold_through`, `stacked_verdict_does_not_carry`); the round's bookkeeping voids exactly the families above the first red one (`stackStatus_void_iff`, `stackStatus_landed_iff`, `stackStatus_bisected_iff`). |
 | `BraidedTrain/Examples.lean` | Concrete instances that exercise the general lemmas against small, fully-written-out cases. |
 | `CheckAxioms.lean` | Prints the axioms each main theorem depends on; `make proofs` fails if any line mentions `sorryAx` or `Classical.choice`. |
 
@@ -110,10 +113,6 @@ separately checks the source text of `proofs/BraidedTrain/*.lean` for `sorry` an
 
 Further modelling work this directory does not yet cover:
 
-- **Speculative stacking across a list of families.** Model a stack of more than two families
-  gated in sequence (the current results cover one family, or two interleaved owners) and
-  state what a red family in the middle of the stack voids: every family gated on top of it,
-  none gated underneath it.
 - **Termination and gate count of bisection.** `Train.settle_red` halves a red family and
   regates each half; show this process terminates (family size strictly decreases) and bound
   the number of gates it costs in terms of the number of red pull requests.
