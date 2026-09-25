@@ -1,57 +1,151 @@
+<p align="center">
+  <img src="docs/img/hero.svg" alt="SVRF: the merge queue built for agent swarms. Batches, bisects, and proves every landing." width="100%">
+</p>
+
 # Silicon Valley Rocket Fuel (SVRF)
 
-A merge train for repos where agents open PRs faster than CI can gate them one by one.
+**The merge queue built for agent swarms — batches, bisects, and proves every landing.**
 
-SVRF watches a GitHub repository, picks up ready pull requests, folds compatible ones
-together, runs **your** gate command once on the folded tree, and lands them with
-ordinary merge commits, checking after every merge that the base branch holds exactly
-the tree that was gated. The scheduling technique inside is a *braided train*:
-pull requests that do not conflict are braided into families that gate in parallel;
-the ones that do conflict wait for a later round.
+[![CI](https://github.com/nybarius/SVRF/actions/workflows/ci.yml/badge.svg)](https://github.com/nybarius/SVRF/actions/workflows/ci.yml)
+[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
+[![Proofs: Lean 4, axiom-checked](https://img.shields.io/badge/proofs-Lean%204%20%C2%B7%20axiom--checked-5c4ee5.svg)](proofs/README.md)
+![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-3776ab.svg)
+![No dependencies](https://img.shields.io/badge/dependencies-none-brightgreen.svg)
 
-On a 17k-declaration Lean monorepo fed by coding agents it went from 5.8 to 16.3 merges
-per hour on the same machine, 44 s of wall time per merged PR, 0.88 gates per PR
-(details and caveats in [docs/BENCHMARK.md](docs/BENCHMARK.md)).
+SVRF is a merge train for repositories where agents open pull requests faster than CI can
+gate them one by one. It watches a GitHub repository, folds compatible ready pull requests
+together, runs **your** gate command once on the folded tree, bisects a red batch down to
+the pull request that broke it, and lands the rest with ordinary merge commits, checking
+after every merge that the base branch holds exactly the tree that was gated. The
+scheduling technique inside is a *braided train*: pull requests that do not conflict are
+braided into families that gate in parallel; the ones that do conflict wait for a later
+round.
+
+<p align="center">
+  <img src="docs/img/benchmark.svg" alt="Benchmark: 5.8 to 16.3 merges per hour, about 3 minutes to about 47 seconds of wall time per PR, 0.79 gate runs per merged PR; best batch 13 PRs in 2 gate runs in 4:46" width="100%">
+</p>
+
+On a 17,000-declaration Lean monorepo fed by coding agents it went from 5.8 to 16.3 merges
+per hour on the same machine, about 47 s of wall time per merged PR, 0.79 gate runs per
+merged PR with bisection included, and 0 landed-tree mismatches. One day, one repository,
+and the "after" window was arrival-bound: details and caveats in
+[docs/BENCHMARK.md](docs/BENCHMARK.md).
 
 ## Quickstart
 
-```sh
-docker build -t svrf .
-cp svrf.example.toml svrf.toml   # set repo and gate.commands
-docker run -d --name svrf -e GH_TOKEN -v "$PWD/svrf.toml:/config/svrf.toml:ro" -v svrf-state:/var/lib/svrf svrf
-docker logs -f svrf
-```
-
-`GH_TOKEN` needs permission to push branches and merge pull requests
-([docs/GITHUB_SETUP.md](docs/GITHUB_SETUP.md)). Try it with no GitHub at all first:
+**0. Watch it work first (optional, no GitHub needed).** A fake agent swarm opens eight
+pull requests against a local bare repository (two conflicting, one failing its own
+test, one committed out of order, one stacked on another), and the real train code
+lands them:
 
 ```sh
 python3 demo/run_demo.py
 ```
 
-The demo creates a bare git repository, lets a fake agent swarm open eight pull requests
-(two conflicting, one failing its own test, one committed out of order, one stacked on
-another), and runs the real train code against a local stand-in for the GitHub API.
-[Recorded cast of the demo running](docs/demo.cast) — an asciinema v2 recording; play it
-with `asciinema play docs/demo.cast` ([asciinema.org](https://asciinema.org)).
+**1. Install.** Either add the published GitHub Action. It needs no local install and no
+`svrf.toml`: on its first run it detects your project and gate command.
 
-Without Docker: `pip install .` (Python 3.11+, git, and the `gh` CLI), then
-`svrf --config svrf.toml run --once`, or install the systemd timer with
-`bash systemd/install.sh --enable`. On GitHub Actions instead of your own machine or
-systemd: see [docs/ACTION.md](docs/ACTION.md).
+```yaml
+# .github/workflows/svrf.yml
+name: svrf
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  pull_request:
+    types: [ready_for_review]
+jobs:
+  round:
+    runs-on: ubuntu-latest
+    concurrency: { group: svrf-round, cancel-in-progress: false }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: nybarius/SVRF@v0.1.0
+        with:
+          github-token: ${{ secrets.SVRF_TOKEN }}   # see docs/GITHUB_SETUP.md for scopes
+```
+
+Or install the CLI, to run it on your own machine, in a container or on a self-hosted
+runner (Python 3.11+, git and the `gh` CLI):
+
+```sh
+pipx install svrf   # or: pip install svrf
+```
+
+Either way the token (`GH_TOKEN` or `secrets.SVRF_TOKEN`) needs permission to push
+branches and merge pull requests ([docs/GITHUB_SETUP.md](docs/GITHUB_SETUP.md)).
+
+**2. Configure.** The Action needs nothing further. With the CLI, `svrf init` writes
+`svrf.toml` by detection (project type, gate command, base branch, repository), asking at
+most three questions with sensible defaults; `svrf doctor` then checks the token's
+scopes, branch protection, and that the gate command actually runs.
+
+```sh
+svrf init        # --yes accepts every default; --repo/--base/--gate override one
+svrf doctor
+```
+
+`svrf init` never overwrites an existing `svrf.toml` or workflow file unless you pass
+`--force`. Presets for Lean, Python and Node are in [presets/](presets/).
+
+**3. Run.**
+
+```sh
+svrf run --once          # one round; or `svrf watch` to keep going
+```
+
+or install the systemd timer (`bash systemd/install.sh --enable`), or run it in Docker:
+
+```sh
+docker build -t svrf .
+docker run -d --name svrf -e GH_TOKEN -v "$PWD/svrf.toml:/config/svrf.toml:ro" -v svrf-state:/var/lib/svrf svrf
+docker logs -f svrf
+```
+
+See [docs/ACTION.md](docs/ACTION.md) for the Action's inputs and zero-config behaviour,
+and [docs/AGENTS.md](docs/AGENTS.md) for `svrf why`, `svrf status --json` and `svrf mcp`:
+a coding agent whose pull request gets held can find out why and fix it itself.
+
+## What you'll see
+
+The demo, as it runs ([docs/demo.cast](docs/demo.cast) is the asciinema recording;
+`asciinema play docs/demo.cast`):
+
+<p align="center"><img src="docs/img/demo.svg" alt="Animated terminal: the demo opens eight pull requests, runs the train tick by tick, and prints what merged and what was held" width="100%"></p>
+
+On every pull request it merges, a comment naming the batch it was gated in, the gated
+tree, and the receipt:
+
+<p align="center"><img src="docs/img/pr-comment.svg" alt="The comment SVRF leaves on a merged pull request" width="720"></p>
+
+And `svrf dashboard` builds a static site from the round receipts: live queue, throughput,
+gates and wall time per PR, a batch timeline, the bisection tree of every red batch, holds,
+and the landed-tree = gated-tree tally. One self-contained `index.html`: open it from disk
+or publish it to GitHub Pages ([docs/DASHBOARD.md](docs/DASHBOARD.md)). Shown here on
+anonymized receipts from a real day of runs (`make dashboard-sample`):
+
+<p align="center"><img src="docs/img/dashboard.png" alt="The SVRF dashboard: totals, live queue, landed-tree tally, throughput, gates per PR and wall time per PR" width="100%"></p>
+
+<p align="center"><img src="docs/img/dashboard-bisection-dark.png" alt="Dashboard, dark theme: batch timeline and the bisection tree of a red batch" width="100%"></p>
 
 ## Commands
 
 | Command | What it does |
 | --- | --- |
+| `svrf init` | detect the project and write `svrf.toml` (and a scheduled workflow); needs no config |
+| `svrf doctor` | read-only checks: token scopes, branch protection, gate command, rate budget |
 | `svrf run --once` | one round: discover, admit, gate, land (what the timer runs) |
 | `svrf watch` | a round every `train.interval_seconds` |
 | `svrf plan --dry-run` | one round that gates and reports but pushes, merges and remembers nothing |
 | `svrf land --prs 12,15` | one batched run over the named pull requests |
-| `svrf status` | held pull requests and the last round, from local state only |
+| `svrf status [--json]` | held pull requests and the last round, from local state only |
+| `svrf why 12` | why one pull request is held or queued, and what to do next ([docs/AGENTS.md](docs/AGENTS.md)) |
+| `svrf mcp` | an MCP server over stdio for coding agents: queue status, why held, requeue ([docs/AGENTS.md](docs/AGENTS.md)) |
 | `svrf forget 12,15` | drop pull requests from the held memory |
+| `svrf dashboard --receipts DIR --out DIR` | a static site from the round receipts ([docs/DASHBOARD.md](docs/DASHBOARD.md)); needs no config or token |
 
 ## How a round works
+
+<p align="center"><img src="docs/img/architecture.svg" alt="Architecture: PR swarm, admission, batch planner, gate slots with bisection of red batches, landing with a tree check, main" width="100%"></p>
 
 1. **One list.** Read GitHub's rate budget, then one pull-request list. An idle round
    costs exactly that.
@@ -99,7 +193,7 @@ which is exactly the theorems' hypothesis.
 Every round writes a JSON receipt (`<state_dir>/receipts/`): the pull-request snapshot,
 the pairwise conflicts, each family with its planned tree, every gate with its output,
 every merge with its gated and observed tree, holds, alerts, rate waits and API call
-counts. `<state_dir>/held.json` lists every held pull request with its reason.
+counts. `svrf dashboard` renders them ([docs/DASHBOARD.md](docs/DASHBOARD.md)). `<state_dir>/held.json` lists every held pull request with its reason.
 
 ## On the pull request
 
@@ -185,6 +279,7 @@ own to run, Mergify, Graphite, or Aviator are that trade-off.
 make check    # everything CI runs: Python tests (denylist scan + demo), Lean proofs, docker build
 make demo
 make wheel    # sdist/wheel, smoke tested by installing into a fresh venv
+make images   # regenerate docs/img/*.svg from docs/BENCHMARK.md and docs/demo.cast
 ```
 
 The project has no Python dependencies beyond the standard library. The proofs need

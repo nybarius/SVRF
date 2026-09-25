@@ -1,0 +1,108 @@
+{
+ "alerts": [],
+ "api_calls": {
+  "graphql": 1,
+  "rest": 0
+ },
+ "config": {
+  "dry_run": false,
+  "family_size": 8,
+  "jobs": 1,
+  "max_rounds": 8,
+  "memory": {
+   "need_gb": 10,
+   "reserve_gb": 8
+  },
+  "rate_floor": 200
+ },
+ "families": [
+  {
+   "base": "d70c8484eed7db6d7eb526edf12bf39a2ccb81c4",
+   "commit": "2f6ff646fc8e937cd3c6673c781b9371980927cc",
+   "gate": 0,
+   "id": "F1",
+   "parent": null,
+   "prs": [
+    121
+   ],
+   "status": "HELD",
+   "steps": [
+    {
+     "commit": "2f6ff646fc8e937cd3c6673c781b9371980927cc",
+     "number": 121,
+     "tree": "6ef00d831ee7b7cb73845bef6f4de6925f12214b"
+    }
+   ],
+   "tree": "6ef00d831ee7b7cb73845bef6f4de6925f12214b"
+  }
+ ],
+ "finished": "20260925T172821Z",
+ "gates": [
+  {
+   "base": "d70c8484eed7db6d7eb526edf12bf39a2ccb81c4",
+   "commit": "2f6ff646fc8e937cd3c6673c781b9371980927cc",
+   "failing": [
+    "FAILED case-5",
+    "FAILED case-6",
+    "FAILED case-7"
+   ],
+   "family": "F1",
+   "green": false,
+   "prs": [
+    121
+   ],
+   "seconds": 16.573,
+   "slot": "slot-0",
+   "started": 1790357284.9814599,
+   "tree": "6ef00d831ee7b7cb73845bef6f4de6925f12214b"
+  }
+ ],
+ "holds": [
+  {
+   "failing": [
+    "FAILED case-5",
+    "FAILED case-6",
+    "FAILED case-7"
+   ],
+   "number": 121,
+   "paths": [],
+   "reason": "GATE_RED"
+  }
+ ],
+ "merges": [],
+ "out": {},
+ "pairs": {
+  "conflicts": [],
+  "read": 0,
+  "unreadable": []
+ },
+ "pending": [],
+ "prs": {
+  "121": {
+   "draft": false,
+   "head_ref": "agent/pr-121",
+   "head_sha": "95cd9bba4f3eb404736157d897794399eb23d8dc",
+   "number": 121,
+   "title": "Change 121"
+  }
+ },
+ "rate_waits": [],
+ "requested": [
+  121
+ ],
+ "retry_later": [],
+ "rounds": [
+  {
+   "base": "d70c8484eed7db6d7eb526edf12bf39a2ccb81c4",
+   "families": [
+    "F1"
+   ],
+   "queue": [
+    121
+   ]
+  }
+ ],
+ "schema_version": "svrf.receipt/1",
+ "started": "20260925T172801Z",
+ "stopped": false
+}

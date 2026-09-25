@@ -4,6 +4,26 @@
 one discovery/admission/gate/land pass, then it exits. It does not watch continuously —
 schedule it with a workflow's `on.schedule`, the same way you would run any periodic job.
 
+## Zero-config
+
+The Action works with no `svrf.toml` in the repository at all: if the file the `config`
+input names is not on disk, `action/run.sh` runs the same auto-detection `svrf init
+--yes` does (project type, gate command, base branch, repository) before the round, using
+`GITHUB_REPOSITORY` for the repository slug. The generated config is not committed back;
+it is written into the job's own checkout and regenerated every round. For a project type
+`svrf init` recognizes (`pyproject.toml`/`setup.py`/`requirements.txt`, `package.json`,
+`Cargo.toml`, `go.mod`, a Lean `lakefile`, or a Makefile `test:` target) this needs no
+setup at all. For anything else it falls back to a placeholder gate command that will
+fail `svrf doctor` and the round's own gate step — run `svrf init` yourself once (with
+`--gate` if needed), commit the resulting `svrf.toml`, and the Action will use it instead
+of guessing.
+
+This does mean the checkout step for a zero-config workflow needs the whole repository,
+not the `sparse-checkout: svrf.toml` trick the example below uses — detection has to see
+`pyproject.toml`, `package.json`, and the rest to guess anything. Once `svrf.toml` is
+committed (whether you wrote it or the Action's own fallback did, copied back out of a
+run's logs), you can switch to the narrower sparse checkout below.
+
 ## Inputs
 
 | Input | Required | Default | Meaning |

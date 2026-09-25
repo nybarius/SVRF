@@ -54,7 +54,12 @@ def build(config: Config, *, github=None, dry_run: bool = False, clock=None, sle
     return Daemon(git, github or RealGitHub(config.repo), gate, admission, state_dir=config.state_dir,
                   receipts=config.receipts, base=config.base, dry_run=dry_run, rate_floor=config.train.rate_floor,
                   lock_path=config.lock, hold_label=config.hold_label, is_union=union, repair=config.repair,
-                  reland=config.history.reland and config.history.order != "off", kind=kind,
+                  # history.reland alone gates this: reland_class only ever returns a class
+                  # from a `history:REFUSED:` residual (the built-in tests-first check,
+                  # order != "off") or a `reland:REFUSED:` one an admission.command reports
+                  # itself, so there is nothing to disable when the built-in check is off
+                  # but a command supplies the same class of refusal.
+                  reland=config.history.reland, kind=kind,
                   history_verdict=lambda b, h: history.verdict(git, b, h, kind, prefixes),
                   train_options={"jobs": config.train.jobs, "family_size": config.train.family_size,
                                  "memory": memory, "rate_floor": config.train.rate_floor,

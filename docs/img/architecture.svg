@@ -1,0 +1,80 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="320" viewBox="0 0 1200 320" role="img" aria-label="SVRF architecture: PR swarm, admission, batch planner, gate slots, bisection, landing with tree check">
+<title>SVRF architecture: PR swarm, admission, batch planner, gate slots, bisection, landing with tree check</title>
+<style>
+.t{font-family:system-ui,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;fill:#0b0b0b} .s{font-family:system-ui,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;fill:#52514e} .m{font-family:system-ui,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;fill:#7a7873}
+.card{fill:#fcfcfb;stroke:rgba(11,11,11,.10)} .grid{stroke:#e7e6e0} .base{stroke:#c3c2b7}
+.before{fill:#b9b8b0} .after{fill:#2a78d6} .good{fill:#0ca30c} .accent{fill:#2a78d6}
+.chipbg{fill:rgba(42,120,214,.10)} .chip{font-family:system-ui,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;fill:#1c5cab;font-weight:650}
+@media (prefers-color-scheme: dark) {
+ .t{fill:#f5f5f2} .s{fill:#c3c2b7} .m{fill:#8f8d86} .card{fill:#1a1a19;stroke:rgba(255,255,255,.10)}
+ .grid{stroke:#2c2c2a} .base{stroke:#45453f} .before{fill:#5b5a55} .after{fill:#3987e5}
+ .accent{fill:#3987e5} .chipbg{fill:rgba(57,135,229,.18)} .chip{fill:#86b6ef}
+}
+.box{fill:#fcfcfb;stroke:#c3c2b7;stroke-width:1.2} .hot{fill:rgba(42,120,214,.08);stroke:#2a78d6;stroke-width:1.4}
+.red{fill:rgba(208,59,59,.07);stroke:#d03b3b;stroke-width:1.2} .ok{fill:rgba(12,163,12,.08);stroke:#0ca30c;stroke-width:1.4}
+.edge{stroke:#898781;stroke-width:1.6;fill:none} .edge.r{stroke:#d03b3b} .edge.g{stroke:#0ca30c}
+.head{fill:#898781} .head.r{fill:#d03b3b} .head.g{fill:#0ca30c} .pr{fill:#fcfcfb;stroke:#c3c2b7}
+.prline{stroke:#c3c2b7;stroke-width:2;stroke-linecap:round} .rtext{font-family:system-ui,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;fill:#b83232}
+.gtext{font-family:system-ui,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;fill:#087a08}
+@media (prefers-color-scheme: dark) {
+ .box{fill:#1a1a19;stroke:#45453f} .hot{fill:rgba(57,135,229,.12);stroke:#3987e5} .red{fill:rgba(208,59,59,.12)}
+ .ok{fill:rgba(12,163,12,.12)} .pr{fill:#1a1a19;stroke:#45453f} .prline{stroke:#45453f}
+ .rtext{fill:#ef6b6b} .gtext{fill:#3cc03c}
+}</style>
+<rect class="pr" x="18" y="38" width="92" height="64" rx="8"/>
+<rect class="pr" x="25" y="47" width="92" height="64" rx="8"/>
+<rect class="pr" x="32" y="56" width="92" height="64" rx="8"/>
+<rect class="pr" x="39" y="65" width="92" height="64" rx="8"/>
+<line class="prline" x1="48" x2="104" y1="80" y2="80"/>
+<line class="prline" x1="48" x2="90" y1="92" y2="92"/>
+<line class="prline" x1="48" x2="76" y1="104" y2="104"/>
+<circle class="accent" cx="37" cy="80" r="5"/>
+<text class="t" x="70" y="182" font-size="15" font-weight="650" text-anchor="middle">PR swarm</text>
+<text class="m" x="70" y="202" font-size="12.5" text-anchor="middle">agents open PRs</text>
+<path class="edge " d="M124,90.0 L143,90.0"/><path class="head " d="M150,90.0 l-9,-5 v10 z"/>
+<rect class="box" x="150" y="30" width="176" height="120" rx="14"/>
+<text class="t" x="238.0" y="60" font-size="16" font-weight="650" text-anchor="middle">Admission</text>
+<text class="s" x="238.0" y="86" font-size="13" text-anchor="middle">merges onto main?</text>
+<text class="s" x="238.0" y="106" font-size="13" text-anchor="middle">history in order?</text>
+<text class="s" x="238.0" y="126" font-size="13" text-anchor="middle">drafts, forks, holds out</text>
+<rect class="box" x="356" y="30" width="190" height="120" rx="14"/>
+<text class="t" x="451.0" y="60" font-size="16" font-weight="650" text-anchor="middle">Batch planner</text>
+<text class="s" x="451.0" y="86" font-size="13" text-anchor="middle">pairwise conflict read</text>
+<text class="s" x="451.0" y="106" font-size="13" text-anchor="middle">largest compatible set</text>
+<text class="s" x="451.0" y="126" font-size="13" text-anchor="middle">families of 8, stacked</text>
+<rect class="hot" x="576" y="30" width="170" height="120" rx="14"/>
+<text class="t" x="661.0" y="60" font-size="16" font-weight="650" text-anchor="middle">Gate slots</text>
+<rect class="ok" x="776" y="30" width="190" height="120" rx="14"/>
+<text class="t" x="871.0" y="60" font-size="16" font-weight="650" text-anchor="middle">Landing</text>
+<text class="s" x="871.0" y="86" font-size="13" text-anchor="middle">merge commit pinned</text>
+<text class="s" x="871.0" y="106" font-size="13" text-anchor="middle">to the gated sha</text>
+<text class="s" x="871.0" y="126" font-size="13" text-anchor="middle">fetch, compare trees</text>
+<rect class="ok" x="996" y="30" width="180" height="120" rx="14"/>
+<text class="t" x="1086.0" y="60" font-size="16" font-weight="650" text-anchor="middle">main</text>
+<path class="edge " d="M326,90.0 L349,90.0"/><path class="head " d="M356,90.0 l-9,-5 v10 z"/>
+<path class="edge " d="M546,90.0 L569,90.0"/><path class="head " d="M576,90.0 l-9,-5 v10 z"/>
+<path class="edge " d="M746,90.0 L769,90.0"/><path class="head " d="M776,90.0 l-9,-5 v10 z"/>
+<path class="edge g" d="M966,90.0 L989,90.0"/><path class="head g" d="M996,90.0 l-9,-5 v10 z"/>
+<rect class="box" x="591" y="74" width="140" height="26" rx="7"/>
+<text class="s" x="606" y="91.5" font-size="12.5">slot 1  F1</text>
+<rect class="box" x="591" y="110" width="140" height="26" rx="7"/>
+<text class="s" x="606" y="127.5" font-size="12.5">slot 2  F2 on F1</text>
+<line class="edge g" x1="1016" x2="1156" y1="88" y2="88"/>
+<circle class="good" cx="1030" cy="88" r="6"/>
+<circle class="good" cx="1068" cy="88" r="6"/>
+<circle class="good" cx="1106" cy="88" r="6"/>
+<circle class="good" cx="1144" cy="88" r="6"/>
+<text class="gtext" x="1086" y="118" font-size="12.5" text-anchor="middle" font-weight="600">✓ every landed tree</text>
+<text class="gtext" x="1086" y="135" font-size="12.5" text-anchor="middle" font-weight="600">= its gated tree</text>
+<rect class="red" x="576" y="220" width="170" height="74" rx="14"/>
+<text class="t" x="661" y="248" font-size="16" font-weight="650" text-anchor="middle">Bisection</text>
+<text class="s" x="661" y="270" font-size="13" text-anchor="middle">red batch → two halves</text>
+<text class="s" x="661" y="286" font-size="13" text-anchor="middle">regated on current main</text>
+<path class="edge r" d="M631,150 V213"/><path class="head r" d="M631,220 l-5,-9 h10 z"/>
+<text class="rtext" x="621" y="188" font-size="12.5" text-anchor="end" font-weight="600">red</text>
+<path class="edge" d="M691,220 V157"/><path class="head" d="M691,150 l-5,9 h10 z"/>
+<text class="m" x="701" y="188" font-size="12.5">halves</text>
+<text class="m" x="766" y="252" font-size="12.5">a single red PR is held</text>
+<text class="m" x="766" y="270" font-size="12.5">with its failing lines</text>
+<text class="m" x="20" y="264" font-size="12.5">One pull-request list per round; a failed read is retried, never a hold.</text>
+</svg>

@@ -1,0 +1,139 @@
+{
+ "alerts": [],
+ "api_calls": {
+  "graphql": 1,
+  "rest": 12
+ },
+ "config": {
+  "dry_run": false,
+  "family_size": 8,
+  "jobs": 2,
+  "max_rounds": 3,
+  "memory": {
+   "need_gb": 10,
+   "reserve_gb": 8
+  },
+  "rate_floor": 200
+ },
+ "families": [
+  {
+   "base": "835ea2472d14c760e186ac5fbc8e203fe03ec205",
+   "commit": "f7ece9bea59dcd6f0066bfeb768f41a3273fc02c",
+   "gate": 0,
+   "id": "F1",
+   "landed": "da71fb2f62b61d456a041edbabfc70fe3006557d",
+   "parent": null,
+   "prs": [
+    128,
+    129
+   ],
+   "status": "LANDED",
+   "steps": [
+    {
+     "commit": "42013df1438a57cef2bc747cbf257b01214e873a",
+     "number": 128,
+     "tree": "867bf994a8dbdbd69bdfddea98ac92ddb85357f7"
+    },
+    {
+     "commit": "f7ece9bea59dcd6f0066bfeb768f41a3273fc02c",
+     "number": 129,
+     "tree": "5d10e55cfa0c3b11e8b0bd0a0eb557e9031f003d"
+    }
+   ],
+   "tree": "5d10e55cfa0c3b11e8b0bd0a0eb557e9031f003d"
+  }
+ ],
+ "finished": "20260925T175942Z",
+ "gates": [
+  {
+   "base": "835ea2472d14c760e186ac5fbc8e203fe03ec205",
+   "commit": "f7ece9bea59dcd6f0066bfeb768f41a3273fc02c",
+   "failing": [],
+   "family": "F1",
+   "green": true,
+   "prs": [
+    128,
+    129
+   ],
+   "seconds": 21.764,
+   "slot": "slot-0",
+   "started": 1790359131.3225257,
+   "tree": "5d10e55cfa0c3b11e8b0bd0a0eb557e9031f003d"
+  }
+ ],
+ "holds": [],
+ "merges": [
+  {
+   "at": 1790359166.3360329,
+   "family": "F1",
+   "gated_tree": "867bf994a8dbdbd69bdfddea98ac92ddb85357f7",
+   "head": "9a58ed76b096232c06ca9b55b20d287f158cedc6",
+   "identity": true,
+   "merge": "1a0e9487daad933a5e1f680e7c9d8866daafb60c",
+   "number": 128,
+   "observed_tree": "867bf994a8dbdbd69bdfddea98ac92ddb85357f7",
+   "parents": [
+    "835ea2472d14c760e186ac5fbc8e203fe03ec205",
+    "9a58ed76b096232c06ca9b55b20d287f158cedc6"
+   ]
+  },
+  {
+   "at": 1790359180.412456,
+   "family": "F1",
+   "gated_tree": "5d10e55cfa0c3b11e8b0bd0a0eb557e9031f003d",
+   "head": "6aed39744d51b6102eab8f2e32a0eedc5b9e020c",
+   "identity": true,
+   "merge": "da71fb2f62b61d456a041edbabfc70fe3006557d",
+   "number": 129,
+   "observed_tree": "5d10e55cfa0c3b11e8b0bd0a0eb557e9031f003d",
+   "parents": [
+    "1a0e9487daad933a5e1f680e7c9d8866daafb60c",
+    "6aed39744d51b6102eab8f2e32a0eedc5b9e020c"
+   ]
+  }
+ ],
+ "out": {},
+ "pairs": {
+  "conflicts": [],
+  "read": 1,
+  "unreadable": []
+ },
+ "pending": [],
+ "prs": {
+  "128": {
+   "draft": false,
+   "head_ref": "agent/pr-128",
+   "head_sha": "e1334a6e11e9ef57111030688903ccb97b84ba6f",
+   "number": 128,
+   "title": "Change 128"
+  },
+  "129": {
+   "draft": false,
+   "head_ref": "agent/pr-129",
+   "head_sha": "da7f19941cac6dbff1cb313845b55d63754c348f",
+   "number": 129,
+   "title": "Change 129"
+  }
+ },
+ "rate_waits": [],
+ "requested": [
+  128,
+  129
+ ],
+ "retry_later": [],
+ "rounds": [
+  {
+   "base": "835ea2472d14c760e186ac5fbc8e203fe03ec205",
+   "families": [
+    "F1"
+   ],
+   "queue": [
+    128,
+    129
+   ]
+  }
+ ],
+ "schema_version": "svrf.receipt/1",
+ "started": "20260925T175848Z",
+ "stopped": false
+}

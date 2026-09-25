@@ -20,7 +20,7 @@ import os
 import subprocess
 from typing import Callable
 
-from . import history
+from . import history, rules
 from .errors import ReadFailed
 from .redact import redact
 
@@ -64,4 +64,10 @@ class Admission:
             return []
         output = redact(done.stdout + done.stderr, env)
         lines = [line.strip() for line in output.splitlines() if line.strip()]
-        return [f"check:{line[:200]}" for line in lines[-5:]] or [f"check:exit={done.returncode}"]
+        # A line the command already shaped as a reland refusal (`reland:REFUSED:<class>`)
+        # is passed through as-is, so reland_class reads it exactly like the built-in
+        # tests-first check's own `history:REFUSED:<class>`; every other line is a plain
+        # diagnostic and is wrapped under `check:`.
+        residuals = [line[:200] if rules.RELAND_LINE.match(line[:200]) else f"check:{line[:200]}"
+                     for line in lines[-5:]]
+        return residuals or [f"check:exit={done.returncode}"]

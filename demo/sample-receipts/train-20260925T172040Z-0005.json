@@ -1,0 +1,198 @@
+{
+ "alerts": [],
+ "api_calls": {
+  "graphql": 1,
+  "rest": 0
+ },
+ "config": {
+  "dry_run": true,
+  "family_size": 8,
+  "jobs": 2,
+  "max_rounds": 3,
+  "memory": {
+   "need_gb": 10,
+   "reserve_gb": 8
+  },
+  "rate_floor": 200
+ },
+ "families": [
+  {
+   "base": "1fc5f8b1ab5bfb9016315c9c29ee173d78d181cc",
+   "commit": "b4742384bee56c2338680d2655bfb69bea736c35",
+   "gate": 0,
+   "id": "F1",
+   "parent": null,
+   "prs": [
+    116,
+    117,
+    118,
+    121,
+    123,
+    124,
+    125
+   ],
+   "status": "RED_DRY",
+   "steps": [
+    {
+     "commit": "c2d92e1a2ddf5887aab2825306252b6031091742",
+     "number": 116,
+     "tree": "07bf239f2409c8c71407ef8cb1c69cde4feac03d"
+    },
+    {
+     "commit": "56f23c677aa3f474377bb3ff560c7d784c440985",
+     "number": 117,
+     "tree": "a334ce07138ea9bf469820e7ba6de327be96dfe0"
+    },
+    {
+     "commit": "6e1ef9989af0f383dd591ef7017562e5619f41ca",
+     "number": 118,
+     "tree": "cc22795d253ea77e6a583eb4eeb04f80469d43b4"
+    },
+    {
+     "commit": "0d81c48821212e5ec930ae70c2ecbf2afc6c2108",
+     "number": 121,
+     "tree": "d97a7c09fd31811eda6803758a24d38965593d1e"
+    },
+    {
+     "commit": "c834e9eb545f4d121a92b3d8e6ffa4550578372e",
+     "number": 123,
+     "tree": "dc1d99f4a807ee86034a880dd818d44baaf1bbc1"
+    },
+    {
+     "commit": "1c3bad713a65cb95cdc3f989861982424bfaf48d",
+     "number": 124,
+     "tree": "2c63604b5d4ae9bc5b322c0651b45e686743d97b"
+    },
+    {
+     "commit": "b4742384bee56c2338680d2655bfb69bea736c35",
+     "number": 125,
+     "tree": "166498cf7e2b0b0eb04eb3f756ef03592e48acd7"
+    }
+   ],
+   "tree": "166498cf7e2b0b0eb04eb3f756ef03592e48acd7"
+  }
+ ],
+ "finished": "20260925T172210Z",
+ "gates": [
+  {
+   "base": "1fc5f8b1ab5bfb9016315c9c29ee173d78d181cc",
+   "commit": "b4742384bee56c2338680d2655bfb69bea736c35",
+   "failing": [
+    "FAILED case-4",
+    "FAILED case-9",
+    "FAILED case-10",
+    "FAILED case-11",
+    "FAILED case-12",
+    "FAILED case-13",
+    "FAILED case-14",
+    "FAILED case-15"
+   ],
+   "family": "F1",
+   "green": false,
+   "prs": [
+    116,
+    117,
+    118,
+    121,
+    123,
+    124,
+    125
+   ],
+   "seconds": 86.748,
+   "slot": "slot-0",
+   "started": 1790356843.269122,
+   "tree": "166498cf7e2b0b0eb04eb3f756ef03592e48acd7"
+  }
+ ],
+ "holds": [],
+ "merges": [],
+ "out": {},
+ "pairs": {
+  "conflicts": [],
+  "read": 21,
+  "unreadable": []
+ },
+ "pending": [],
+ "prs": {
+  "116": {
+   "draft": false,
+   "head_ref": "agent/pr-116",
+   "head_sha": "5a1d99c90ee8c432ed655ff536889dfc9363d1e1",
+   "number": 116,
+   "title": "Change 116"
+  },
+  "117": {
+   "draft": false,
+   "head_ref": "agent/pr-117",
+   "head_sha": "c190a02ff14a7ef3ed6bf173654cbe098743d838",
+   "number": 117,
+   "title": "Change 117"
+  },
+  "118": {
+   "draft": false,
+   "head_ref": "agent/pr-118",
+   "head_sha": "f9c848f843d9a43d38e8a5ceefcb0af2045d88f2",
+   "number": 118,
+   "title": "Change 118"
+  },
+  "121": {
+   "draft": false,
+   "head_ref": "agent/pr-121",
+   "head_sha": "dce0176d8a70039320909cb2dbb1bc9bce10e181",
+   "number": 121,
+   "title": "Change 121"
+  },
+  "123": {
+   "draft": false,
+   "head_ref": "agent/pr-123",
+   "head_sha": "2c476961eb7c8852ab5280d5a6e9dc6596ec82e1",
+   "number": 123,
+   "title": "Change 123"
+  },
+  "124": {
+   "draft": false,
+   "head_ref": "agent/pr-124",
+   "head_sha": "13cd176f4c210133ba93fe36588af3c6b81a313f",
+   "number": 124,
+   "title": "Change 124"
+  },
+  "125": {
+   "draft": false,
+   "head_ref": "agent/pr-125",
+   "head_sha": "95bfcba3c6c2bc7c98ec05d1aa1b56a6bd70364c",
+   "number": 125,
+   "title": "Change 125"
+  }
+ },
+ "rate_waits": [],
+ "requested": [
+  116,
+  117,
+  118,
+  121,
+  123,
+  124,
+  125
+ ],
+ "retry_later": [],
+ "rounds": [
+  {
+   "base": "1fc5f8b1ab5bfb9016315c9c29ee173d78d181cc",
+   "families": [
+    "F1"
+   ],
+   "queue": [
+    116,
+    117,
+    118,
+    121,
+    123,
+    124,
+    125
+   ]
+  }
+ ],
+ "schema_version": "svrf.receipt/1",
+ "started": "20260925T172040Z",
+ "stopped": false
+}

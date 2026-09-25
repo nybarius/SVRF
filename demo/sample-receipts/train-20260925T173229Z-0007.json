@@ -1,0 +1,109 @@
+{
+ "alerts": [],
+ "api_calls": {
+  "graphql": 1,
+  "rest": 0
+ },
+ "config": {
+  "dry_run": true,
+  "family_size": 8,
+  "jobs": 2,
+  "max_rounds": 3,
+  "memory": {
+   "need_gb": 10,
+   "reserve_gb": 8
+  },
+  "rate_floor": 200
+ },
+ "families": [
+  {
+   "base": "d70c8484eed7db6d7eb526edf12bf39a2ccb81c4",
+   "commit": "d96e0642e465ac83862a17186d494f141506215d",
+   "gate": 0,
+   "id": "F1",
+   "parent": null,
+   "prs": [
+    119,
+    126
+   ],
+   "status": "GATED_DRY",
+   "steps": [
+    {
+     "commit": "974dda9d0d7f91f14bee8b7b1af9fbbbdae165f0",
+     "number": 119,
+     "tree": "60dc486ebc7e5059eaf9dbddc731d5bb6820d980"
+    },
+    {
+     "commit": "d96e0642e465ac83862a17186d494f141506215d",
+     "number": 126,
+     "tree": "6c95b37244fce833310e2b95f8e9044d7d7d889c"
+    }
+   ],
+   "tree": "6c95b37244fce833310e2b95f8e9044d7d7d889c"
+  }
+ ],
+ "finished": "20260925T173423Z",
+ "gates": [
+  {
+   "base": "d70c8484eed7db6d7eb526edf12bf39a2ccb81c4",
+   "commit": "d96e0642e465ac83862a17186d494f141506215d",
+   "failing": [],
+   "family": "F1",
+   "green": true,
+   "prs": [
+    119,
+    126
+   ],
+   "seconds": 111.32,
+   "slot": "slot-0",
+   "started": 1790357552.478477,
+   "tree": "6c95b37244fce833310e2b95f8e9044d7d7d889c"
+  }
+ ],
+ "holds": [],
+ "merges": [],
+ "out": {},
+ "pairs": {
+  "conflicts": [],
+  "read": 1,
+  "unreadable": []
+ },
+ "pending": [],
+ "prs": {
+  "119": {
+   "draft": false,
+   "head_ref": "agent/pr-119",
+   "head_sha": "282122ffc1185ae1c6ada787ea09890ec70d4104",
+   "number": 119,
+   "title": "Change 119"
+  },
+  "126": {
+   "draft": false,
+   "head_ref": "agent/pr-126",
+   "head_sha": "38d2a2376449b410a51419621578649a2fe324de",
+   "number": 126,
+   "title": "Change 126"
+  }
+ },
+ "rate_waits": [],
+ "requested": [
+  119,
+  126
+ ],
+ "retry_later": [],
+ "rounds": [
+  {
+   "base": "d70c8484eed7db6d7eb526edf12bf39a2ccb81c4",
+   "families": [
+    "F1"
+   ],
+   "queue": [
+    119,
+    126
+   ]
+  }
+ ],
+ "schema_version": "svrf.receipt/1",
+ "started": "20260925T173229Z",
+ "stopped": false
+}
