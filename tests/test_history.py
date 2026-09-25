@@ -200,6 +200,20 @@ class RepairPlumbing(Repo):
         with self.assertRaises(ReadFailed):
             Admission(g, command="definitely-not-a-command-svrf")(head, main)
 
+    def test_the_admission_command_can_report_its_own_order_only_refusal_for_reland(self):
+        # A command that classifies commit order itself (rather than relying on the
+        # built-in tests-first check) reports it under `reland:REFUSED:<class>`, one of
+        # the residual prefixes reland_class reads (`history:` is reserved for the
+        # built-in check). Every other line from the same command is still wrapped
+        # under `check:` so it is never misread as a structured residual.
+        g = self.rg()
+        main = g.main_sha()
+        git(self.work, "checkout", "-q", "--detach", main)
+        self.write("x.py", "x = 1\n")
+        head = self.commit("x")
+        held = Admission(g, command="echo 'reland:REFUSED:UNORDERED'; echo 'also this line'; exit 1")(head, main)
+        self.assertEqual(held["residuals"], ["reland:REFUSED:UNORDERED", "check:also this line"])
+
 
 class GlobSemantics(unittest.TestCase):
     def test_globs(self):

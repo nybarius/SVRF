@@ -165,7 +165,10 @@ def admission(row: dict, held: dict | None, watch_digest: str | None = None, car
 
 MERGE_CONFLICT = "merge:CONFLICT:"
 STALE_LINES = ("github:NOT_MERGEABLE",)
-RELAND_LINE = re.compile(r"^history:REFUSED:(UNORDERED|MIXED)$")
+# `history:` is the built-in tests-first check's own prefix; `reland:` is the one an
+# external admission.command uses to report the same order-only refusal (see
+# admission.py's PASSTHROUGH_PREFIXES). Both name the identical class of refusal.
+RELAND_LINE = re.compile(r"^(?:history|reland):REFUSED:(UNORDERED|MIXED)$")
 
 
 def repair_class(lines: list[str], is_union: Callable[[str], bool]) -> str | None:
