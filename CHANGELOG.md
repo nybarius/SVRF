@@ -7,6 +7,8 @@ project intends to follow [Semantic Versioning](https://semver.org/) once it rea
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-09-25
+
 ### Changed
 
 - License changed from Apache-2.0 to the PolyForm Shield License 1.0.0, with commercial and
