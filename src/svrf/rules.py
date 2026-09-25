@@ -32,6 +32,15 @@ RULES: dict[str, dict[str, str]] = {
     "interleaved-owners": {"lean": "interleaved_landing", "check": "choose_families"},
     "repair-mechanical": {"lean": "retry_iff", "check": "repair_class"},
     "ordered-reland": {"lean": "reland_tree", "check": "reland_class"},
+    "union-merge": {"lean": "change_comm", "check": "union_lines"},
+    "speculative-stacking": {"lean": "stack_lands_gated", "check": "Train.round"},
+    "speculation-void": {"lean": "stackStatus_void_iff", "check": "Train.round"},
+    "bisect-holds-exactly-red": {"lean": "settle_outcome", "check": "Train.settle_red"},
+    "bisect-gate-bound": {"lean": "bisection_gates_le", "check": "Train.settle_red"},
+    "maximal-family": {"lean": "bk_maximal", "check": "families"},
+    "left-out-names-partner": {"lean": "chosen_family_maximal", "check": "choose_families"},
+    "maximum-family": {"lean": "chosen_family_maximum", "check": "choose_families"},
+    "stacked-retarget": {"lean": "retarget_after_parent", "check": "Daemon.stacked"},
 }
 
 
