@@ -55,8 +55,11 @@ make demo     # just the local demo (no GitHub, no network)
 
 ## Sign-off
 
-No DCO or CLA is required. Apache-2.0 (see `LICENSE` and `NOTICE`) covers the project;
-by opening a pull request you agree your contribution is licensed under the same terms.
+No DCO is required. SVRF is distributed under the PolyForm Shield License 1.0.0 and also
+under commercial terms (see `COMMERCIAL.md`). By opening a pull request you license your
+contribution to the maintainer under the Apache License 2.0, so it can be distributed under
+both the project's license and its commercial terms, and you confirm you have the right to
+do so.
 
 ## Reporting a bug or asking a question
 

@@ -230,10 +230,13 @@ class Packaging(unittest.TestCase):
         compose = (ROOT / "docker-compose.example.yml").read_text(encoding="utf-8")
         self.assertIn("GH_TOKEN", compose)
 
-    def test_the_license_is_apache_2(self):
-        self.assertIn("Apache License", (ROOT / "LICENSE").read_text(encoding="utf-8"))
-        self.assertIn('license = "Apache-2.0"', (ROOT / "pyproject.toml").read_text(encoding="utf-8"))
-        self.assertTrue((ROOT / "NOTICE").is_file())
+    def test_the_license_is_polyform_shield_with_commercial_terms(self):
+        license_text = (ROOT / "LICENSE").read_text(encoding="utf-8")
+        self.assertIn("PolyForm Shield License 1.0.0", license_text)
+        self.assertIn("Required Notice: Copyright 2026 Stephen Schweizer", license_text)
+        self.assertIn('license = "LicenseRef-PolyForm-Shield-1.0.0"', (ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+        self.assertIn("Required Notice:", (ROOT / "NOTICE").read_text(encoding="utf-8"))
+        self.assertTrue((ROOT / "COMMERCIAL.md").is_file())
 
 
 if __name__ == "__main__":
