@@ -32,10 +32,13 @@ python3 demo/run_demo.py
 The demo creates a bare git repository, lets a fake agent swarm open eight pull requests
 (two conflicting, one failing its own test, one committed out of order, one stacked on
 another), and runs the real train code against a local stand-in for the GitHub API.
+[Recorded cast of the demo running](docs/demo.cast) — an asciinema v2 recording; play it
+with `asciinema play docs/demo.cast` ([asciinema.org](https://asciinema.org)).
 
 Without Docker: `pip install .` (Python 3.11+, git, and the `gh` CLI), then
 `svrf --config svrf.toml run --once`, or install the systemd timer with
-`bash systemd/install.sh --enable`.
+`bash systemd/install.sh --enable`. On GitHub Actions instead of your own machine or
+systemd: see [docs/ACTION.md](docs/ACTION.md).
 
 ## Commands
 
@@ -134,41 +137,49 @@ file listing the changed paths), so a gate can build only what changed.
 
 ## Compared with other merge queues
 
-Summarised from each project's public documentation; corrections welcome.
+Summarised from each project's public documentation, not from using all of them in
+production; corrections welcome (open an issue).
 
-| | SVRF | GitHub merge queue | bors-ng | Mergify | Zuul |
-| --- | --- | --- | --- | --- | --- |
-| Where it runs | your machine or container | GitHub | self-hosted (project retired in favour of GitHub's queue) | hosted service | self-hosted |
-| Where checks run | its own gate command, on the same machine | your CI, on queue branches | your CI | your CI | its own job runners |
-| Groups pull requests into one tested batch | yes, conflict-aware | yes | yes | yes | tests each change on top of those ahead of it |
-| Chooses batches by pairwise conflicts | yes | no | no | no | no |
-| Union-merges configured files instead of conflicting | yes | no | no | no | no |
-| Compares each landed tree with the gated tree | yes | not documented | not documented | not documented | not documented |
-| Re-lands out-of-order histories | yes (optional) | no | no | no | no |
-| Needs hosted CI minutes | no | yes | yes | yes | no |
+| | SVRF | GitHub merge queue | bors-ng | Mergify | Graphite | Aviator | Zuul |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Where it runs | your machine or container | GitHub | self-hosted | hosted service | hosted service | hosted service | self-hosted |
+| Availability | any GitHub plan, any repo | private-repo availability depends on your GitHub plan (Team or Enterprise); free for public repos | archived: development has stopped upstream | paid hosted plan | paid hosted plan | paid hosted plan | self-hosted, no plan required |
+| Where checks run | its own gate command, on the same machine | your CI, on queue branches | your CI | your CI | your CI | your CI | its own job runners |
+| Groups pull requests into one tested batch | yes, conflict-aware | yes | yes | yes | yes | yes | yes, via speculative gating: each change is tested as if the ones ahead of it in the pipeline had already merged |
+| Chooses batches by pairwise conflicts | yes | no | no | no | no | no | no |
+| Union-merges configured files instead of conflicting | yes | no | no | no | no | no | no |
+| Compares each landed tree with the gated tree | yes | not documented | not documented | not documented | not documented | not documented | not documented |
+| Re-lands out-of-order histories | yes (optional) | no | no | no | no | no | no |
+| Needs hosted CI minutes | no | yes | yes | yes | yes | yes | no |
 
 SVRF is young and single-repository. If your CI is fast relative to your pull-request
-rate, GitHub's merge queue is the simpler choice.
+rate, or you're already paying for a GitHub plan that includes it, GitHub's merge queue
+is the simpler choice. If you want a managed, hosted queue with no infrastructure of your
+own to run, Mergify, Graphite, or Aviator are that trade-off.
 
 ## Roadmap
 
-* **Receipted checks**: reuse a previous gate result when the exact inputs of a check are
-  unchanged. On the benchmark repository an experimental version reused 98.1% of checks
-  exactly with 0 wrong reuses, and 0 input-footprint mismatches over 927 historical
-  commits. Not included yet.
+* **Receipted incremental checks** (planned, optional): reuse a previous gate result when
+  the exact inputs of a check are unchanged, instead of re-running it. Still experimental:
+  it ships only after it matches a full check on historical commits with zero
+  disagreements, as something you opt into, never a change in what a green gate means.
 * A GitHub App mode that mints its own installation tokens.
 * Status checks on pull requests while they wait.
 
 ## Development
 
 ```sh
-make check    # Python tests (with the denylist scan and the demo) and the Lean proofs
+make check    # everything CI runs: Python tests (denylist scan + demo), Lean proofs, docker build
 make demo
+make wheel    # sdist/wheel, smoke tested by installing into a fresh venv
 ```
 
 The project has no Python dependencies beyond the standard library. The proofs need
 [elan](https://github.com/leanprover/elan); the toolchain is pinned in
-`proofs/lean-toolchain`.
+`proofs/lean-toolchain`. `make check` also builds the container image, so it needs
+Docker. See [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request, and
+[SECURITY.md](SECURITY.md) to report a vulnerability. Releasing a new version is covered
+in [docs/RELEASING.md](docs/RELEASING.md).
 
 ## License
 

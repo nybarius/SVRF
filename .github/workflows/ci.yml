@@ -39,7 +39,5 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: build image
-        run: docker build -t svrf .
-      - name: smoke
-        run: docker run --rm --entrypoint svrf svrf --version
+      - name: build image and smoke test it
+        run: make docker

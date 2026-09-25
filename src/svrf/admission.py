@@ -22,6 +22,7 @@ from typing import Callable
 
 from . import history, rules
 from .errors import ReadFailed
+from .redact import redact
 
 UNAVAILABLE_EXITS = (126, 127)
 
@@ -61,7 +62,8 @@ class Admission:
             raise ReadFailed(f"ADMISSION_COMMAND_UNAVAILABLE:{done.returncode}")
         if done.returncode == 0:
             return []
-        lines = [line.strip() for line in (done.stdout + done.stderr).splitlines() if line.strip()]
+        output = redact(done.stdout + done.stderr, env)
+        lines = [line.strip() for line in output.splitlines() if line.strip()]
         # A line the command already shaped as a reland refusal (`reland:REFUSED:<class>`)
         # is passed through as-is, so reland_class reads it exactly like the built-in
         # tests-first check's own `history:REFUSED:<class>`; every other line is a plain

@@ -220,11 +220,23 @@ def outcome(hub: LocalHub, state: dict, n: int) -> tuple[str, str]:
     return pr["state"], ""
 
 
-def run(root: Path, *, verbose: bool = False, max_ticks: int = 8) -> dict:
+def run(root: Path, *, verbose: bool = False, max_ticks: int = 8, narrate: bool = True) -> dict:
+    def phase(text: str) -> None:
+        if narrate:
+            print(f"\n== {text} ==")
+
+    phase("Six agents open eight pull requests against the toy project")
     origin, hub, story = scenario(root)
+    if narrate:
+        for n in sorted(story):
+            print(f"  #{n} {hub.prs[n]['title']!r} ({hub.prs[n]['author']}): {story[n]}")
+
+    phase("Configuring the train (the gate is the toy project's own unit tests)")
     config = configure(root, origin)
     daemon = build(config, github=hub)
     daemon.train_options["poll_seconds"] = 0
+
+    phase("Running the train, one round per tick, until it goes idle")
     ticks, started = [], time.monotonic()
     first_round: dict[int, int] = {}
     for tick in range(1, max_ticks + 1):
@@ -232,11 +244,26 @@ def run(root: Path, *, verbose: bool = False, max_ticks: int = 8) -> dict:
         ticks.append(summary)
         for n in summary.get("merged", []):
             first_round.setdefault(n, tick)
+        if narrate:
+            bits = [f"tick {tick}: {summary['tick']}"]
+            if summary.get("merged"):
+                bits.append("merged " + ", ".join(f"#{n}" for n in summary["merged"]))
+            if summary.get("held"):
+                bits.append("held " + ", ".join(f"#{n}" for n in summary["held"]))
+            if summary.get("repaired"):
+                bits.append("repaired " + ", ".join(f"#{r['number']}" for r in summary["repaired"]))
+            if summary.get("retargeted"):
+                bits.append("retargeted " + ", ".join(f"#{n}" for n in summary["retargeted"]))
+            if summary.get("relanded"):
+                bits.append("relanded " + ", ".join(f"#{r['number']} -> #{r['new_number']}"
+                                                     for r in summary["relanded"]))
+            print("  " + "; ".join(bits))
         if verbose:
             print(json.dumps({k: v for k, v in summary.items() if v not in ([], {}, None)}, indent=1, sort_keys=True))
         if summary["tick"] == "IDLE":
             break
     wall = time.monotonic() - started
+    phase("Done: what landed, what's still held")
     state = json.loads((config.state_dir / "state.json").read_text())
     for m, body in hub.comments:
         if body.startswith("Superseded by #"):

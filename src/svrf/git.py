@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Callable
 
 from .errors import ReadFailed
+from .redact import redact
 from .rules import union_lines
 
 
@@ -65,7 +66,8 @@ class RealGit:
     def _out(self, *args, input: str | None = None, env: dict | None = None) -> str:
         done = self._run(*args, input=input, env=env)
         if done.returncode != 0:
-            raise ReadFailed(f"GIT_FAILED:{args[0]}:{done.returncode}:{done.stderr.strip()[:160]}")
+            stderr = redact(done.stderr.strip(), env or self.env)
+            raise ReadFailed(f"GIT_FAILED:{args[0]}:{done.returncode}:{stderr[:160]}")
         return done.stdout.strip()
 
     # ---- reads
