@@ -39,17 +39,27 @@ class LocalHub:
     # ---- the author side
 
     def open_pr(self, head: str, base: str, title: str, body: str = "", *, draft: bool = False,
-                labels=(), author: str = "svrf") -> int:
+                labels=(), author: str = "svrf", number: int | None = None) -> int:
         self.calls["rest"] += 1
         if self._sha(head) is None:
             raise ReadFailed(f"NO_SUCH_BRANCH:{head}")
-        number = self.next_number
-        self.next_number += 1
+        if number is None:
+            number = self.next_number
+            self.next_number += 1
+        elif number in self.prs:
+            raise ReadFailed(f"NUMBER_TAKEN:{number}")
+        else:
+            self.next_number = max(self.next_number, number + 1)
         self.prs[number] = {"number": number, "title": title, "body": body, "head_ref": head, "base": base,
                             "draft": draft, "labels": list(labels), "state": "open", "merged_at": None,
-                            "author": author}
+                            "author": author, "merge_commit": None}
         self._publish(number)
         return number
+
+    def merge_commit(self, number: int) -> str | None:
+        """The commit this hub made when it merged this pull request, or None (never
+        merged, or still open)."""
+        return self.prs[number].get("merge_commit")
 
     def _publish(self, number: int) -> None:
         """GitHub's refs/pull/<n>/head, so a clone can fetch every pull request's head."""
@@ -125,7 +135,7 @@ class LocalHub:
         message = f"Merge pull request #{number} from {pr['head_ref']}\n\n{pr['title']}"
         merged = self._git("commit-tree", tree, "-p", base, "-p", head, "-m", message).stdout.strip()
         self._git("update-ref", f"refs/heads/{pr['base']}", merged, base)
-        pr["state"], pr["merged_at"] = "closed", "merged"
+        pr["state"], pr["merged_at"], pr["merge_commit"] = "closed", "merged", merged
         return merged
 
     def comment(self, number: int, body: str) -> None:

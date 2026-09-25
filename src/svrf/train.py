@@ -37,6 +37,7 @@ run leaves its last state on disk.
 
 from __future__ import annotations
 
+import itertools
 import json
 import os
 import threading
@@ -49,6 +50,13 @@ from .errors import RateLimited, ReadFailed
 from .rules import choose_families, chunk
 
 SCHEMA = "svrf.receipt/1"
+
+# A per-process counter for receipt filenames. `id(self)` is not a safe discriminator:
+# CPython may reuse a freed Train instance's address for the next one, so two runs
+# started within the same wall-clock second (the timestamp's own resolution) and the
+# same pid could otherwise produce the identical receipt filename, and the second
+# `_save()` would silently overwrite the first run's receipt.
+_receipt_serial = itertools.count()
 
 
 class Train:
@@ -71,7 +79,7 @@ class Train:
         stamp = time.strftime("%Y%m%dT%H%M%SZ", time.gmtime(clock()))
         receipts = Path(receipts).expanduser()
         receipts.mkdir(parents=True, exist_ok=True)
-        self.path = receipts / f"train-{stamp}-{os.getpid()}-{id(self) % 10000:04d}.json"
+        self.path = receipts / f"train-{stamp}-{os.getpid()}-{next(_receipt_serial):04d}.json"
         self.receipt: dict = {
             "schema_version": SCHEMA, "started": stamp, "finished": None,
             "config": {"jobs": self.jobs, "family_size": self.family_size, "dry_run": dry_run,

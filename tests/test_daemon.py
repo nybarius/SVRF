@@ -91,6 +91,15 @@ class PureRules(unittest.TestCase):
         self.assertIsNone(rules.reland_class(["history:REFUSED:UNORDERED", "merge:CONFLICT:tools/x.py"]))
         self.assertIsNone(rules.reland_class(["history:REFUSED:UNORDERED", "history:REFUSED:MIXED"]))
 
+    def test_reland_classes_also_read_an_admission_commands_own_history_verdict(self):
+        # An external admission.command cannot emit a bare `history:` residual (that
+        # prefix is reserved for the built-in tests-first check), so it reports the same
+        # order-only refusal under `reland:REFUSED:<class>` instead. reland_class treats
+        # the two prefixes as one class of refusal.
+        self.assertEqual(rules.reland_class(["reland:REFUSED:UNORDERED"]), "UNORDERED")
+        self.assertEqual(rules.reland_class(["reland:REFUSED:MIXED"]), "MIXED")
+        self.assertIsNone(rules.reland_class(["reland:REFUSED:UNORDERED", "history:REFUSED:MIXED"]))
+
     def test_repair_classes_are_exactly_the_mechanical_ones(self):
         self.assertEqual(rules.repair_class([f"merge:CONFLICT:{UNION}"], is_union), "UNION_CONFLICT")
         self.assertEqual(rules.repair_class(["github:NOT_MERGEABLE"], is_union), "STALE_BASE")
