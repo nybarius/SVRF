@@ -11,9 +11,10 @@
     svrf init                detect this project and write svrf.toml + a scheduled workflow
     svrf doctor              read-only checks: token, branch protection, gate, rate budget
     svrf mcp                 an MCP server over stdio for coding agents (see docs/AGENTS.md)
+    svrf dashboard --receipts DIR --out DIR   a static site from round receipts (no config needed)
 
-Every command reads `--config` (default: $SVRF_CONFIG, else ./svrf.toml); `init` is the
-one exception, since it is what creates that file.
+Every command reads `--config` (default: $SVRF_CONFIG, else ./svrf.toml); `init` (which
+creates that file) and `dashboard` (which reads only receipts) are the exceptions.
 Exit codes: 0 ok, 1 a landed tree did not match its gated tree, 2 bad configuration,
 3 another train owns the lock.
 """
@@ -28,7 +29,7 @@ import sys
 import time
 from pathlib import Path
 
-from . import __version__, replay as replayer
+from . import __version__, dashboard, replay as replayer
 from .app import build, ensure_clone
 from .config import ConfigError, load
 from .errors import ReadFailed
@@ -167,6 +168,10 @@ def main(argv: list[str] | None = None, *, github=None) -> int:
                             help="the shared round base (a sha); default: every listed pull request's own "
                                  "reconstructed base, which must then be identical")
     replay_cmd.add_argument("--gate", action="store_true", help="also run the configured gate on each family")
+    dash = sub.add_parser("dashboard", help="write a static site (index.html) from round receipts")
+    dash.add_argument("--receipts", required=True, help="directory of train-*.json receipts")
+    dash.add_argument("--out", required=True, help="directory to write index.html into")
+    dash.add_argument("--title", default="SVRF merge train")
     sub.add_parser("doctor", help="read-only checks: token, branch protection, gate command, rate budget")
     sub.add_parser("mcp", help="an MCP server over stdio: queue_status, why_held, requeue (see docs/AGENTS.md)")
     init_p = sub.add_parser("init", help="detect this project and write svrf.toml + a scheduled workflow")
@@ -177,6 +182,11 @@ def main(argv: list[str] | None = None, *, github=None) -> int:
     init_p.add_argument("--gate", default=None, help="gate command (default: detected from the project type)")
     init_p.add_argument("--dir", default=".", help="project directory (default: the current directory)")
     args = ap.parse_args(argv)
+
+    if args.command == "dashboard":
+        index = dashboard.build(Path(args.receipts), Path(args.out), title=args.title)
+        _print({"dashboard": str(index)})
+        return 0
 
     if args.command == "init":
         from . import init as init_module

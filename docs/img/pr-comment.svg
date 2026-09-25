@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="196" viewBox="0 0 760 196" role="img" aria-label="The comment SVRF leaves on a merged pull request">
+<title>The comment SVRF leaves on a merged pull request</title>
+<style>
+.t{font-family:system-ui,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;fill:#0b0b0b} .s{font-family:system-ui,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;fill:#52514e} .m{font-family:system-ui,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;fill:#7a7873}
+.card{fill:#fcfcfb;stroke:rgba(11,11,11,.10)} .grid{stroke:#e7e6e0} .base{stroke:#c3c2b7}
+.before{fill:#b9b8b0} .after{fill:#2a78d6} .good{fill:#0ca30c} .accent{fill:#2a78d6}
+.chipbg{fill:rgba(42,120,214,.10)} .chip{font-family:system-ui,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;fill:#1c5cab;font-weight:650}
+@media (prefers-color-scheme: dark) {
+ .t{fill:#f5f5f2} .s{fill:#c3c2b7} .m{fill:#8f8d86} .card{fill:#1a1a19;stroke:rgba(255,255,255,.10)}
+ .grid{stroke:#2c2c2a} .base{stroke:#45453f} .before{fill:#5b5a55} .after{fill:#3987e5}
+ .accent{fill:#3987e5} .chipbg{fill:rgba(57,135,229,.18)} .chip{fill:#86b6ef}
+}</style>
+<rect class="card" x=".5" y=".5" width="759" height="195" rx="12"/>
+<path class="chipbg" d="M.5,12.5 a12,12 0 0 1 12,-12 H747.5 a12,12 0 0 1 12,12 V48 H.5 Z"/>
+<rect x="18" y="12" width="24" height="24" rx="7" class="accent"/>
+<path d="M24.5 31 V28 Q24.5 25.5 30 23.5 Q35.5 25.5 35.5 28 V31 M30 23.5 V16.5 M27 19.5 L30 16.5 L33 19.5" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<text class="t" x="52" y="29" font-size="14" font-weight="650">svrf</text>
+<text class="m" x="88" y="29" font-size="14">commented on a merged pull request</text>
+<text class="s" x="20" y="80" font-size="14">Merged by SVRF in family F1 [141, 142, 143, 144, 145, 146, 147, 148], gated once on</text>
+<text class="s" x="20" y="102" font-size="14">tree 3f9c2a7be410; the landed tree 3f9c2a7be410 was checked against the planned</text>
+<text class="s" x="20" y="124" font-size="14">tree. Receipt: train-20260925T170505Z-4242-0137.json.</text>
+<text class="m" x="20" y="160" font-size="12.5">✓ gated once · landed tree compared with the gated tree · receipt on disk</text>
+</svg>
