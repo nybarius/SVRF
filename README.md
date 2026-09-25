@@ -160,10 +160,9 @@ own to run, Mergify, Graphite, or Aviator are that trade-off.
 ## Roadmap
 
 * **Receipted incremental checks** (planned, optional): reuse a previous gate result when
-  the exact inputs of a check are unchanged, instead of re-running it. On the benchmark
-  repository an experimental version reused 98.1% of checks exactly with 0 wrong reuses,
-  and 0 input-footprint mismatches over 927 historical commits. Not included yet; it will
-  ship as something you opt into, not a change in what a green gate means today.
+  the exact inputs of a check are unchanged, instead of re-running it. Still experimental:
+  it ships only after it matches a full check on historical commits with zero
+  disagreements, as something you opt into, never a change in what a green gate means.
 * A GitHub App mode that mints its own installation tokens.
 * Status checks on pull requests while they wait.
 
