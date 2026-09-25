@@ -71,6 +71,7 @@ states it and the function or method that enforces it in the running train.
 | `bisect-gate-bound` | `bisection_gates_le` | `Train.settle_red` |
 | `maximal-family` | `bk_maximal` | `families` |
 | `left-out-names-partner` | `chosen_family_maximal` | `choose_families` |
+| `maximum-family` | `chosen_family_maximum` | `choose_families` |
 | `stacked-retarget` | `retarget_after_parent` | `Daemon.stacked` |
 
 `tests/test_proof_map.py` checks this table against `svrf.rules.RULES` directly: every
@@ -90,7 +91,7 @@ or rename a rule, update the table above and the code together; the test fails o
 | `BraidedTrain/Union.lean` | The line-level union merge (`unionLines`, the model of `union_lines`): exact associativity (`unionLines_assoc`), commutation up to line order (`unionLines_comm`, sharp by `union_order_visible`), and at the path level `change_comm` / `family_perm` under `UnionOnlyOverlap`, the union repair's hypothesis. |
 | `BraidedTrain/Stacking.lean` | Speculative stacking: families gated on the fold of every family before them land gated trees at every family boundary (`stack_lands_gated`); a stacked verdict does not carry past a red family (`stack_fold_through`, `stacked_verdict_does_not_carry`); the round's bookkeeping voids exactly the families above the first red one (`stackStatus_void_iff`, `stackStatus_landed_iff`, `stackStatus_bisected_iff`). |
 | `BraidedTrain/Bisection.lean` | Bisection of a red family (`settle`, the model of `Train.settle_red`) terminates (well-founded on family length), holds exactly the bad pull requests and lands the rest under a monotone gate (`settle_outcome`), and costs at most `2·r·⌈log₂ n⌉ + 1` gates including the family's own (`settle_gates_le`, `bisection_gates_le`). |
-| `BraidedTrain/Families.lean` | The Bron–Kerbosch recursion of `families`, with arbitrary pivot and iteration order: every family it reports is a maximal compatible set (`bk_maximal`), so the family `choose_families` keeps holds no conflicting pair and every pull request left out conflicts with a kept one (`chosen_family_maximal`). |
+| `BraidedTrain/Families.lean` | The Bron–Kerbosch recursion of `families`, with arbitrary pivot and iteration order: every family it reports is a maximal compatible set (`bk_maximal`), so the family `choose_families` keeps holds no conflicting pair and every pull request left out conflicts with a kept one (`chosen_family_maximal`). With a pivot drawn from the candidates or excluded nodes (the code's rule, `codePivot_mem`) and an order visiting every node, it reports every maximal compatible set (`bk_complete`), so the first family of the size-sorted list is a maximum compatible set (`chosen_family_maximum`). |
 | `BraidedTrain/Retarget.lean` | A retarget changes only a pull request's base ref (`retarget_head`, `retarget_headTree`, `retarget_fold`); after the parent landed by a replayed landing, the base branch holds the parent's tree and the stacked pull request lands exactly what it would have landed on its parent (`retarget_lands_same`, `retarget_after_parent`). |
 | `BraidedTrain/Examples.lean` | Concrete instances that exercise the general lemmas against small, fully-written-out cases. |
 | `CheckAxioms.lean` | Prints the axioms each main theorem depends on; `make proofs` fails if any line mentions `sorryAx` or `Classical.choice`. |
@@ -136,8 +137,10 @@ What the proofs above do not cover, and what stands in for it in the running tra
   results assume it is monotone (a set is green exactly when it holds no bad pull
   request). A flaky or order-dependent gate breaks that hypothesis, not the train's
   landing check.
-- **Maximum family.** `bk_maximal` shows every family the enumeration reports is maximal.
-  That the enumeration reports every maximal family, so that the first of the size-sorted
-  list is a largest compatible set, is not proved here.
+- **Sets and sorting in `families`.** The model iterates lists where the code iterates
+  Python sets; the proofs hold for any pivot drawn from `P ∪ X` and any iteration order
+  that visits exactly the nodes of its list, which covers every order the code's sets and
+  `sorted` can produce. That the code's final sort puts a largest family first is read
+  off the sort key (`-len`), not proved.
 - **Concurrency and timing.** Parallel gates, rate-limit waits and the receipt file are
   engineering around the model, not part of it.

@@ -39,6 +39,7 @@ RULES: dict[str, dict[str, str]] = {
     "bisect-gate-bound": {"lean": "bisection_gates_le", "check": "Train.settle_red"},
     "maximal-family": {"lean": "bk_maximal", "check": "families"},
     "left-out-names-partner": {"lean": "chosen_family_maximal", "check": "choose_families"},
+    "maximum-family": {"lean": "chosen_family_maximum", "check": "choose_families"},
     "stacked-retarget": {"lean": "retarget_after_parent", "check": "Daemon.stacked"},
 }
 

@@ -45,3 +45,7 @@ open BraidedTrain
 #print axioms retarget_fold
 #print axioms retarget_lands_same
 #print axioms retarget_after_parent
+#print axioms bk_complete
+#print axioms codePivot_mem
+#print axioms grow_maximal
+#print axioms chosen_family_maximum
