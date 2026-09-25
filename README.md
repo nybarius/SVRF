@@ -32,6 +32,8 @@ python3 demo/run_demo.py
 The demo creates a bare git repository, lets a fake agent swarm open eight pull requests
 (two conflicting, one failing its own test, one committed out of order, one stacked on
 another), and runs the real train code against a local stand-in for the GitHub API.
+[Recorded cast of the demo running](docs/demo.cast) — an asciinema v2 recording; play it
+with `asciinema play docs/demo.cast` ([asciinema.org](https://asciinema.org)).
 
 Without Docker: `pip install .` (Python 3.11+, git, and the `gh` CLI), then
 `svrf --config svrf.toml run --once`, or install the systemd timer with

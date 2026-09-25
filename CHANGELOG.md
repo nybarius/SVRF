@@ -23,8 +23,14 @@ project intends to follow [Semantic Versioning](https://semver.org/) once it rea
   wheel (optionally publishing it to PyPI once `PYPI_API_TOKEN` is set); see
   `docs/RELEASING.md`. `make wheel` runs the same build-and-install-in-a-fresh-venv check
   locally.
+- `docs/demo.cast`: an asciinema v2 recording of `python3 demo/run_demo.py`, linked from
+  the README; `demo/record_cast.py` produces it without needing asciinema installed.
 
 ### Changed
+
+- `demo/run_demo.py` now prints a short narrated header before each phase (opening pull
+  requests, configuring the train, each round, the final table), on by default
+  (`run(..., narrate=False)` to silence it).
 
 - `make check` now also builds and smoke tests the container image, matching every job
   `.github/workflows/ci.yml` runs; that CI job now calls `make docker` instead of
