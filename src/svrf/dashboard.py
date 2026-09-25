@@ -256,7 +256,7 @@ def summarize(receipts: list[dict]) -> dict:
 
 
 def _embed(value: dict) -> str:
-    text = json.dumps(value, sort_keys=True, separators=(",", ":"))
+    text = json.dumps(value, sort_keys=True)
     return text.replace("<", "\\u003c").replace(">", "\\u003e").replace("&", "\\u0026")
 
 
