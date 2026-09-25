@@ -32,6 +32,7 @@ RULES: dict[str, dict[str, str]] = {
     "interleaved-owners": {"lean": "interleaved_landing", "check": "choose_families"},
     "repair-mechanical": {"lean": "retry_iff", "check": "repair_class"},
     "ordered-reland": {"lean": "reland_tree", "check": "reland_class"},
+    "union-merge": {"lean": "change_comm", "check": "union_lines"},
 }
 
 

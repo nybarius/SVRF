@@ -21,10 +21,14 @@ model's hypotheses true of the real repository, round after round.
   not trust it either: after every merge it reads the tree the base branch now holds and
   checks it against the tree the model predicted (`checkLanding` / `Replays`). A mismatch
   stops the family instead of being explained away.
-- **A union merge on configured paths is modelled as independent writes** (`write`,
-  `apply`) that commute when their paths are disjoint. This is what backs treating two
-  pull requests as compatible when their only overlap is a union-merged file such as a
-  changelog.
+- **A union merge on configured paths is modelled line by line** (`unionLines`, `Edit`,
+  `change` in `Union.lean`): a union edit appends the pull request's new lines once, a
+  replacement sets a path's content. Two changes commute up to the order of union-merged
+  lines when every path both edit is a union edit on both sides (`UnionOnlyOverlap`, the
+  condition `RealGit.union_step` checks before it resolves a conflict). Exact tree
+  equality across fold orders does not hold (`union_order_visible`), which is why the fold
+  order is fixed at planning and replayed at landing. Path-disjoint writes (`write`,
+  `apply`) commute exactly.
 - **A gate is modelled as a predicate, or a function of the tree's content restricted to
   the paths it reads.** The proofs never open the gate command; they only ask whether its
   verdict is a function of what it read (used by the retry and history-reorder results).
@@ -60,6 +64,7 @@ states it and the function or method that enforces it in the running train.
 | `interleaved-owners` | `interleaved_landing` | `choose_families` |
 | `repair-mechanical` | `retry_iff` | `repair_class` |
 | `ordered-reland` | `reland_tree` | `reland_class` |
+| `union-merge` | `change_comm` | `union_lines` |
 
 `tests/test_proof_map.py` checks this table against `svrf.rules.RULES` directly: every
 rule name and theorem name in the code must also appear in this file, every named theorem
@@ -75,6 +80,7 @@ the test fails otherwise.
 | `BraidedTrain/Braid.lean` | The ungated-window invariant (`AllGated`, `mains`); retry as a function of a read key; commutation of disjoint writes (`strands_comm`). |
 | `BraidedTrain/Interleaving.lean` | Two owners landing path-disjoint families interleaved still land one tree (`interleaved_landing`); when a gate's own read paths miss the other owner's writes, no joint gate is needed (`two_owners_end_gated`). |
 | `BraidedTrain/Reland.lean` | Re-landing a history as tests-then-code-then-docs commits lands the identical tree (`reland_tree`), so any tree-reading gate's verdict is unchanged (`reland_gate`). |
+| `BraidedTrain/Union.lean` | The line-level union merge (`unionLines`, the model of `union_lines`): exact associativity (`unionLines_assoc`), commutation up to line order (`unionLines_comm`, sharp by `union_order_visible`), and at the path level `change_comm` / `family_perm` under `UnionOnlyOverlap`, the union repair's hypothesis. |
 | `BraidedTrain/Examples.lean` | Concrete instances that exercise the general lemmas against small, fully-written-out cases. |
 | `CheckAxioms.lean` | Prints the axioms each main theorem depends on; `make proofs` fails if any line mentions `sorryAx` or `Classical.choice`. |
 
@@ -104,11 +110,6 @@ separately checks the source text of `proofs/BraidedTrain/*.lean` for `sorry` an
 
 Further modelling work this directory does not yet cover:
 
-- **Union merge as a model step.** State the configured union-merge (`svrf.rules.union_lines`)
-  as its own step function and show it commutes with `unionStep` on disjoint line additions,
-  the way `apply_comm_of_disjoint` already does for path-level writes — this would extend the
-  commutation result down to line-level changelog entries instead of treating a union-merged
-  file as an all-or-nothing path.
 - **Speculative stacking across a list of families.** Model a stack of more than two families
   gated in sequence (the current results cover one family, or two interleaved owners) and
   state what a red family in the middle of the stack voids: every family gated on top of it,
