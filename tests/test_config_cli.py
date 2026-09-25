@@ -28,6 +28,19 @@ class Config(unittest.TestCase):
         self.assertTrue(config.repair)
         self.assertFalse(config.union_paths("package-lock.json"))
 
+    def test_reland_is_wired_from_the_admission_command_even_with_the_built_in_check_off(self):
+        # history.order == "off" (the default) used to force reland_enabled False no
+        # matter what history.reland said, on the assumption that a reland-eligible
+        # residual could only ever come from the built-in tests-first check. An
+        # admission.command can report the same class of refusal too (reland_class
+        # reads its `reland:REFUSED:<class>` lines), so the built-in check being off
+        # must not silence it.
+        from svrf.app import build
+        on = from_dict({**MINIMAL, "admission": {"command": "true"}, "history": {"reland": True, "order": "off"}})
+        self.assertTrue(build(on, github=object()).reland_enabled)
+        off = from_dict({**MINIMAL, "history": {"reland": False, "order": "off"}})
+        self.assertFalse(build(off, github=object()).reland_enabled)
+
     def test_unknown_keys_are_refused(self):
         for bad in ({**MINIMAL, "familysize": 3}, {**MINIMAL, "train": {"family": 3}},
                     {**MINIMAL, "repair": {"union": ["x"]}}, {**MINIMAL, "labels": {"skip": "x"}}):
