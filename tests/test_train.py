@@ -106,6 +106,27 @@ class TrainRuns(unittest.TestCase):
             self.assertIn(key, on_disk)
         self.assertEqual(receipt["merges"], on_disk["merges"])
 
+    def test_successive_trains_in_the_same_process_and_second_never_share_a_receipt_path(self):
+        """A freed Train's memory address can be reused by CPython for the very next one, so
+        the receipt filename must not depend on `id(self)`: consecutive runs (same pid, same
+        clock second, as consecutive daemon ticks are, each instance freed before the next is
+        made so the allocator is free to reuse its address) must still land on as many distinct
+        receipt files, each carrying only its own run's merges."""
+        clock = Clock()
+        numbers = range(101, 151)
+        paths = []
+        for n in numbers:
+            repo = FakeRepo([n])
+            instance = train(repo, FakeGitHub(repo), FakeGate(repo), self.tmp, clock=clock)
+            paths.append(instance.path)
+            instance.run([n])
+            del instance  # frees the instance so its address can be reused by the next Train
+        self.assertEqual(len(set(paths)), len(paths))
+        files = sorted(Path(self.tmp).glob("*.json"))
+        self.assertEqual(len(files), len(numbers))
+        merged = {row["number"] for f in files for row in json.loads(f.read_text())["merges"]}
+        self.assertEqual(merged, set(numbers))
+
     def test_a_red_family_is_bisected_the_culprit_held_and_the_rest_landed_on_gated_trees(self):
         repo = FakeRepo([1, 2, 3, 4, 5, 6])
         gh, gate = FakeGitHub(repo), FakeGate(repo, bad={4})
