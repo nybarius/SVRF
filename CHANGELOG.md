@@ -35,6 +35,12 @@ project intends to follow [Semantic Versioning](https://semver.org/) once it rea
 - `make check` now also builds and smoke tests the container image, matching every job
   `.github/workflows/ci.yml` runs; that CI job now calls `make docker` instead of
   duplicating its two steps.
+- README: quickstart re-verified by actually running both the Docker and `pip install`
+  paths; the "compared with other merge queues" table now also covers Graphite and
+  Aviator, states that GitHub merge queue's private-repo availability depends on plan,
+  and notes bors-ng is archived; the roadmap's receipted-checks item is marked as a
+  planned, optional feature; links to `CONTRIBUTING.md`, `SECURITY.md`,
+  `docs/RELEASING.md`, and `docs/ACTION.md` added.
 
 ## [0.1.0] - 2026-09-25
 
