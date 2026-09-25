@@ -222,6 +222,7 @@ def main(argv: list[str] | None = None, *, github=None) -> int:
                 _print(report)
                 return 2
         _print(report)
+        return 0
     if args.command == "why":
         _print(why(config, args.number))
         return 0
