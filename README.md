@@ -7,7 +7,7 @@
 **The merge queue built for agent swarms — batches, bisects, and proves every landing.**
 
 [![CI](https://github.com/nybarius/SVRF/actions/workflows/ci.yml/badge.svg)](https://github.com/nybarius/SVRF/actions/workflows/ci.yml)
-[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
+[![License: PolyForm Shield 1.0.0](https://img.shields.io/badge/license-PolyForm%20Shield%201.0.0-blue.svg)](LICENSE)
 [![Proofs: Lean 4, axiom-checked](https://img.shields.io/badge/proofs-Lean%204%20%C2%B7%20axiom--checked-5c4ee5.svg)](proofs/README.md)
 ![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-3776ab.svg)
 ![No dependencies](https://img.shields.io/badge/dependencies-none-brightgreen.svg)
@@ -291,4 +291,8 @@ in [docs/RELEASING.md](docs/RELEASING.md).
 
 ## License
 
-Apache-2.0. See [LICENSE](LICENSE) and [NOTICE](NOTICE).
+[PolyForm Shield 1.0.0](LICENSE): free to use, modify and redistribute, including inside a
+company for its own repositories, as long as you don't use it to compete with SVRF. Commercial
+and enterprise terms (competing or embedded products, support, warranty) are available; see
+[COMMERCIAL.md](COMMERCIAL.md). Releases up to and including v0.1.0 were published under
+Apache-2.0 and remain available under that license.

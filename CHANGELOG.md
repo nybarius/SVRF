@@ -7,6 +7,12 @@ project intends to follow [Semantic Versioning](https://semver.org/) once it rea
 
 ## [Unreleased]
 
+### Changed
+
+- License changed from Apache-2.0 to the PolyForm Shield License 1.0.0, with commercial and
+  enterprise terms available (see COMMERCIAL.md). Releases up to and including v0.1.0 remain
+  available under Apache-2.0.
+
 ### Added
 
 - `svrf dashboard --receipts DIR --out DIR`: a self-contained static site (one
