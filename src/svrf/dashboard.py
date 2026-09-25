@@ -126,7 +126,7 @@ def _trees(receipts: list[dict]) -> list[dict]:
             nodes[f["id"]] = {"id": f["id"], "prs": list(f.get("prs", [])), "status": _family_status(f, r),
                               "green": bool(g and g.get("green")), "seconds": g.get("seconds") if g else None,
                               "reused": bool(g and "reused" in g),
-                              "held": [n for n in f.get("prs", []) if n in held and len(f.get("prs", [])) == 1],
+                              "held": [n for n in f.get("prs", []) if n in held] if f.get("status") == "HELD" else [],
                               "children": []}
         roots = []
         for f in families:

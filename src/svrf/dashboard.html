@@ -13,7 +13,7 @@
   --grid: #e7e6e0; --axis: #c3c2b7; --border: rgba(11,11,11,0.09); --shadow: 0 1px 2px rgba(11,11,11,0.04), 0 4px 16px rgba(11,11,11,0.04);
   --accent: #2a78d6; --accent-wash: rgba(42,120,214,0.10); --good: #0a8f0a; --good-bg: rgba(12,163,12,0.10);
   --bad: #d03b3b; --bad-bg: rgba(208,59,59,0.10); --warn: #b86e00; --warn-bg: rgba(250,178,25,0.16);
-  --hold: #c4602f; --hold-bg: rgba(236,131,90,0.14); --queue-bar: #d9d8d1; --good-bar: #0ca30c; --bad-bar: #d03b3b;
+  --hold: #c4602f; --hold-bg: rgba(236,131,90,0.14); --queue-bar: #dcdbd4; --land-bar: #a6dca6; --good-bar: #0ca30c; --bad-bar: #d03b3b;
   --mono: ui-monospace, "SF Mono", "Cascadia Mono", "JetBrains Mono", Menlo, Consolas, monospace;
 }
 @media (prefers-color-scheme: dark) {
@@ -23,7 +23,7 @@
     --grid: #2c2c2a; --axis: #45453f; --border: rgba(255,255,255,0.09); --shadow: none;
     --accent: #3987e5; --accent-wash: rgba(57,135,229,0.16); --good: #3cc03c; --good-bg: rgba(12,163,12,0.18);
     --bad: #ef6b6b; --bad-bg: rgba(208,59,59,0.20); --warn: #fab219; --warn-bg: rgba(250,178,25,0.16);
-    --hold: #ec835a; --hold-bg: rgba(236,131,90,0.18); --queue-bar: #3a3a37;
+    --hold: #ec835a; --hold-bg: rgba(236,131,90,0.18); --queue-bar: #3a3a37; --land-bar: #2c6e2c;
   }
 }
 :root[data-theme="dark"] {
@@ -32,7 +32,7 @@
   --grid: #2c2c2a; --axis: #45453f; --border: rgba(255,255,255,0.09); --shadow: none;
   --accent: #3987e5; --accent-wash: rgba(57,135,229,0.16); --good: #3cc03c; --good-bg: rgba(12,163,12,0.18);
   --bad: #ef6b6b; --bad-bg: rgba(208,59,59,0.20); --warn: #fab219; --warn-bg: rgba(250,178,25,0.16);
-  --hold: #ec835a; --hold-bg: rgba(236,131,90,0.18); --queue-bar: #3a3a37;
+  --hold: #ec835a; --hold-bg: rgba(236,131,90,0.18); --queue-bar: #3a3a37; --land-bar: #2c6e2c;
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; }
@@ -177,7 +177,7 @@ footer a { color: inherit; }
         <span><i class="sw" style="background:var(--queue-bar)"></i>Waiting</span>
         <span><i class="sw" style="background:var(--good-bar)"></i>Gate green</span>
         <span><i class="sw" style="background:var(--bad-bar)"></i>Gate red</span>
-        <span><i class="sw" style="background:var(--good-bar);opacity:.35"></i>Landing</span>
+        <span><i class="sw" style="background:var(--land-bar)"></i>Landing</span>
       </div>
     </section>
 
@@ -372,7 +372,7 @@ footer a { color: inherit; }
       };
       if (b.queued != null && b.start > b.queued) s += seg(b.queued, b.start, "var(--queue-bar)");
       s += seg(b.start, b.end, b.green ? "var(--good-bar)" : "var(--bad-bar)");
-      if (b.landed && b.landed > b.end) s += seg(b.end, b.landed, "var(--good-bar)", 0.35);
+      if (b.landed && b.landed > b.end) s += seg(b.end, b.landed, "var(--land-bar)");
       var tipHtml = "<b>" + esc(b.family) + "</b> · " + esc(prs.join(" ")) + "<br>" + esc(b.status.replace(/_/g, " ").toLowerCase()) +
         "<br>waited " + dur(b.start - (b.queued || b.start)) + " · gated " + dur(b.end - b.start) + (b.landed ? " · landed " + dur(b.landed - b.end) + " later" : "");
       s += '<rect class="hit" x="' + L + '" y="' + (y - 5) + '" width="' + iw + '" height="' + rowH + '" data-tip="' + esc(tipHtml) + '"/>';
@@ -386,7 +386,7 @@ footer a { color: inherit; }
     var t = D.trees.filter(function (x) { return x.round === round; })[0];
     if (!t) { $("tree-body").innerHTML = '<div class="empty">No red batches: nothing needed bisecting.</div>'; return; }
     var node = function (n) {
-      var state = n.held.length ? "HELD" : n.status === "BISECTED" ? "RED" : n.status;
+      var state = n.status === "BISECTED" ? "RED" : n.status;
       var verdict = n.reused ? '<span class="secs">reused red result</span>' : '<span class="secs">' + (n.seconds != null ? dur(n.seconds) + " gate" : "") + "</span>";
       return '<li><span class="node"><span class="fid">' + esc(n.id) + '</span><span class="prs">' + n.prs.map(function (p) { return "#" + esc(p); }).join(" ") +
         "</span>" + chip(state) + verdict + "</span>" + (n.children.length ? "<ul>" + n.children.map(node).join("") + "</ul>" : "") + "</li>";
