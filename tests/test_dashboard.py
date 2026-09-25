@@ -137,6 +137,17 @@ class Summary(unittest.TestCase):
         self.assertEqual(bars["F3"]["queued"], H + 105)      # F1 gated H+5 .. H+105
         self.assertEqual(bars["F4"]["queued"], H + 210)      # F3 gated H+170 .. H+210
 
+    def test_a_half_under_a_reused_red_result_waits_from_the_grandparent_and_a_later_round_from_the_earlier(self):
+        r = sample()[1]
+        # F3's red result is reused (known red tree): it concludes when its parent F1 did
+        r["gates"][2] = gate("F3", [3, 4], False, H + 5, 0.0, reused=0)
+        r["families"].append(fam("F6", [9], "LANDED", 5))
+        r["gates"].append(gate("F6", [9], True, H + 400, 10))
+        r["rounds"] = [{"families": ["F1"]}, {"families": ["F6"]}]
+        bars = {b["family"]: b for b in dashboard.summarize([r])["timeline"]}
+        self.assertEqual(bars["F4"]["queued"], H + 105)
+        self.assertEqual(bars["F6"]["queued"], H + 250)      # the last landing of the round before
+
     def test_a_landing_whose_tree_was_never_read_is_shown_unread_not_mismatched(self):
         r = sample()[1]
         r["families"][3]["status"] = "TREE_MISMATCH"
