@@ -1,0 +1,40 @@
+name: "SVRF"
+description: "Run one round of the SVRF merge train (discover, admit, gate, land) against this repository."
+author: "SVRF"
+branding:
+  icon: "git-merge"
+  color: "orange"
+
+inputs:
+  github-token:
+    description: >
+      A token with contents/pull-requests read-and-write and issues write on this
+      repository (see docs/GITHUB_SETUP.md for exactly which permissions and why).
+      Exposed to the gate commands' environment as GH_TOKEN, so scope it to no more than
+      this one repository needs, the same as any other unattended credential.
+    required: true
+  config:
+    description: "Path to svrf.toml, relative to the job's working directory."
+    required: false
+    default: "svrf.toml"
+  python-version:
+    description: "Python version used to install and run svrf itself (not your gate's own toolchain)."
+    required: false
+    default: "3.12"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ inputs.python-version }}
+    - name: Install svrf
+      shell: bash
+      run: pip install --quiet "${{ github.action_path }}"
+    - name: Run one SVRF round
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github-token }}
+        SVRF_CONFIG: ${{ inputs.config }}
+      run: "${{ github.action_path }}/action/run.sh"

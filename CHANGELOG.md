@@ -16,6 +16,8 @@ project intends to follow [Semantic Versioning](https://semver.org/) once it rea
   shell; the token never reaches a receipt or a log.
 - `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md` (Contributor Covenant 2.1 by reference), issue
   and pull request templates.
+- `action.yml`: a composite GitHub Action that runs one `svrf run --once` round, with a
+  scheduled-workflow example in `docs/ACTION.md`.
 
 ## [0.1.0] - 2026-09-25
 
