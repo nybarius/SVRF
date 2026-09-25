@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light dark">
 <title>{{TITLE}}</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%232a78d6'/%3E%3Cpath d='M9 22 L16 8 L23 22 M12 17 H20' stroke='white' stroke-width='3' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%232a78d6'/%3E%3Cpath d='M10 26 V21 Q10 17 16 14 Q22 17 22 21 V26 M16 14 V6 M12 10 L16 6 L20 10' stroke='white' stroke-width='2.8' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
 <style>
 :root {
   color-scheme: light;
@@ -93,7 +93,7 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 .hit { fill: transparent; cursor: default; }
 .hit:hover + .bar, .bar.hover { filter: brightness(1.12); }
 .ref { stroke: var(--ink-2); stroke-width: 1; stroke-dasharray: 3 3; }
-.reflabel { fill: var(--ink-2) !important; font-weight: 600; }
+.reflabel { fill: var(--ink-2) !important; font-weight: 600; paint-order: stroke; stroke: var(--surface); stroke-width: 4px; stroke-linejoin: round; }
 .tip { position: fixed; pointer-events: none; z-index: 10; background: var(--ink); color: var(--surface); font-size: 12.5px;
   padding: 7px 10px; border-radius: 8px; line-height: 1.4; opacity: 0; transition: opacity .08s; max-width: 280px; }
 .tip b { font-weight: 650; }
@@ -130,7 +130,7 @@ footer a { color: inherit; }
 <body>
 <div class="wrap">
   <header class="top">
-    <div class="logo" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 32 32"><path d="M9 23 L16 8 L23 23 M11.8 17.5 H20.2" stroke="#fff" stroke-width="3.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+    <div class="logo" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 32 32"><path d="M10 26 V21 Q10 17 16 14 Q22 17 22 21 V26 M16 14 V6 M12 10 L16 6 L20 10" stroke="#fff" stroke-width="2.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
     <div class="brand"><h1>{{TITLE}}</h1><p id="subtitle"></p></div>
     <div class="spacer"></div>
     <span class="pill" id="status"><span class="dot"></span><span id="status-text">idle</span></span>
@@ -303,21 +303,26 @@ footer a { color: inherit; }
   }
 
   // ---- column chart
-  function nice(max) {
-    if (max <= 0) return 1;
-    var p = Math.pow(10, Math.floor(Math.log10(max))), m = max / p;
+  function niceStep(raw) {
+    var p = Math.pow(10, Math.floor(Math.log10(raw))), m = raw / p;
     return (m <= 1 ? 1 : m <= 2 ? 2 : m <= 2.5 ? 2.5 : m <= 5 ? 5 : 10) * p;
+  }
+  function scale(max, unit) {
+    if (!(max > 0)) return {top: 4, step: 1};
+    var step = niceStep(max / 4);
+    if (unit && step % unit) step = Math.ceil(step / unit) * unit;
+    return {top: Math.ceil(max / step - 1e-9) * step, step: step};
   }
   function columns(el, rows, opt) {
     var W = Math.max(280, el.clientWidth), H = opt.height || 200, L = 40, R = 8, TOP = 12, B = 26;
     if (!rows.length) { el.innerHTML = '<div class="empty">No data yet.</div>'; return; }
     var vals = rows.map(function (r) { return r.value == null ? 0 : r.value; });
-    var top = nice(Math.max.apply(null, vals.concat([opt.ref || 0])) * 1.08), iw = W - L - R, ih = H - TOP - B;
+    var sc = scale(Math.max.apply(null, vals.concat([opt.ref || 0])), opt.unit), top = sc.top, iw = W - L - R, ih = H - TOP - B;
     var band = iw / rows.length, bw = Math.max(2, Math.min(24, band - Math.max(2, band * 0.28)));
     var y = function (v) { return TOP + ih - (v / top) * ih; };
     var s = '<svg viewBox="0 0 ' + W + " " + H + '" role="img" aria-label="' + esc(opt.label) + '">';
-    for (var i = 0; i <= 4; i++) {
-      var v = top * i / 4, yy = y(v);
+    for (var v = 0; v <= top + 1e-9; v += sc.step) {
+      var yy = y(v), i = v;
       s += '<line class="' + (i ? "gridline" : "baseline") + '" x1="' + L + '" x2="' + (W - R) + '" y1="' + yy + '" y2="' + yy + '"/>';
       s += '<text x="' + (L - 8) + '" y="' + (yy + 4) + '" text-anchor="end">' + esc(opt.tick(v)) + "</text>";
     }
@@ -406,21 +411,25 @@ footer a { color: inherit; }
     return '<option value="' + esc(r.started) + '"' + (busiest && r.started === busiest.started ? " selected" : "") + ">" + esc(stampTime(r.started)) +
       " · " + r.merged + " merged, " + r.gates + " gate" + (r.gates === 1 ? "" : "s") + "</option>";
   }).join("");
-  $("tree-select").innerHTML = D.trees.map(function (t) { return '<option value="' + esc(t.round) + '">' + esc(stampTime(t.round)) + "</option>"; }).join("");
+  var count = function (n) { return 1 + n.children.reduce(function (a, c) { return a + count(c); }, 0); };
+  var deepest = D.trees.slice().sort(function (a, b) {
+    return b.roots.reduce(function (x, n) { return x + count(n); }, 0) - a.roots.reduce(function (x, n) { return x + count(n); }, 0); })[0];
+  $("tree-select").innerHTML = D.trees.map(function (t) {
+    return '<option value="' + esc(t.round) + '"' + (deepest && t.round === deepest.round ? " selected" : "") + ">" + esc(stampTime(t.round)) + "</option>"; }).join("");
   if (!D.trees.length) $("tree-select").style.display = "none";
 
   function draw() {
     var hours = D.throughput.map(function (h) {
       return {value: h.merged, label: h.hour.slice(11, 16), tip: "<b>" + h.merged + " merged</b><br>" + esc(h.hour.replace("T", " ").replace("Z", " UTC"))};
     });
-    columns($("throughput-chart"), hours, {label: "Merged pull requests per hour", tick: function (v) { return fmt(v, v % 1 ? 1 : 0); }, height: 220});
+    columns($("throughput-chart"), hours, {label: "Merged pull requests per hour", tick: function (v) { return fmt(v); }, unit: 1, height: 220});
     var finished = D.rounds.filter(function (r) { return r.merged > 0; });
     columns($("gates-chart"), finished.map(function (r) {
       return {value: r.gates_per_pr, label: stampTime(r.started).slice(11, 16), tip: "<b>" + fmt(r.gates_per_pr, 2) + " gates per PR</b><br>" + r.gates + " gates, " + r.merged + " merged<br>" + esc(stampTime(r.started))};
     }), {label: "Gate runs per merged PR per round", tick: function (v) { return fmt(v, 2); }, ref: 1, refLabel: "one gate per PR"});
     columns($("wall-chart"), finished.map(function (r) {
       return {value: r.wall_per_pr, label: stampTime(r.started).slice(11, 16), tip: "<b>" + dur(r.wall_per_pr) + " per PR</b><br>round took " + dur(r.wall) + ", " + r.merged + " merged<br>" + esc(stampTime(r.started))};
-    }), {label: "Wall time per merged PR per round", tick: function (v) { return dur(v).replace(" min", "m").replace(" s", "s"); },
+    }), {label: "Wall time per merged PR per round", tick: function (v) { return dur(v).replace(" min", "m").replace(" s", "s"); }, unit: 30,
       ref: T.wall_per_pr, refLabel: "overall " + dur(T.wall_per_pr)});
     timeline($("timeline-chart"), $("round-select").value);
   }

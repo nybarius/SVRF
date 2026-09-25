@@ -144,6 +144,13 @@ class Summary(unittest.TestCase):
         f4 = dashboard.summarize([r])["trees"][0]["roots"][0]["children"][1]["children"][0]
         self.assertEqual((f4["id"], f4["status"]), ("F4", "LANDED_TREE_UNREAD"))
 
+    def test_only_a_held_family_marks_its_pull_request_held(self):
+        r = sample()[1]
+        r["families"][3]["status"] = "REQUEUED"      # F4 [3] stopped, 3 held in a later family
+        r["holds"].append({"number": 3, "reason": "GATE_RED", "paths": [], "failing": []})
+        f3 = dashboard.summarize([r])["trees"][0]["roots"][0]["children"][1]
+        self.assertEqual([(c["id"], c["held"]) for c in f3["children"]], [("F4", []), ("F5", [4])])
+
     def test_no_receipts_is_an_empty_summary_not_an_error(self):
         s = dashboard.summarize([])
         self.assertEqual(s["totals"]["rounds"], 0)
