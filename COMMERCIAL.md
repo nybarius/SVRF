@@ -29,6 +29,15 @@ Commercial and enterprise licenses are negotiated per organisation and can inclu
 
 ## How to ask
 
-Open an issue at <https://github.com/nybarius/SVRF/issues/new> titled
-**"Commercial license"** (it can be brief — who you are and what you want to do), and the
-maintainer will follow up privately.
+Write privately to **nybarius@gmail.com**, or use the prefilled message:
+[commercial license enquiry](mailto:nybarius@gmail.com?subject=SVRF%20commercial%20license&body=Company%3A%0AWhat%20you%20want%20to%20build%20or%20embed%3A%0ASupport%20or%20warranty%20needs%3A). Include your company, what you want to build or
+embed, and any support or warranty needs; you'll get a reply by email.
+
+## Fixed-price deployment
+
+Want SVRF running on your repositories without doing it yourself? The **SVRF Deployment
+Package** is **$2,500, fixed price**: installation on your runners, your gate wired in and
+tuned, branch protection, PR status and comments, the dashboard on GitHub Pages, a
+before/after throughput report, and 30 days of email support. See
+[Hire me / Deployment](README.md#hire-me--deployment) or
+[email about a deployment](mailto:nybarius@gmail.com?subject=SVRF%20deployment&body=Repository%20or%20org%3A%0AGate%20command%20(tests%2Fbuild)%3A%0ARunners%20(hosted%20or%20self-hosted)%3A%0APRs%20per%20day%3A%0ATarget%20start%20date%3A).

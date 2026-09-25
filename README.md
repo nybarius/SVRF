@@ -31,6 +31,8 @@ merged PR with bisection included, and 0 landed-tree mismatches. One day, one re
 and the "after" window was arrival-bound: details and caveats in
 [docs/BENCHMARK.md](docs/BENCHMARK.md).
 
+> **Want it running on your repo this week?** Fixed-price deployment, $2,500: see [Hire me / Deployment](#hire-me--deployment).
+
 ## Quickstart
 
 **0. Watch it work first (optional, no GitHub needed).** A fake agent swarm opens eight
@@ -288,6 +290,30 @@ The project has no Python dependencies beyond the standard library. The proofs n
 Docker. See [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request, and
 [SECURITY.md](SECURITY.md) to report a vulnerability. Releasing a new version is covered
 in [docs/RELEASING.md](docs/RELEASING.md).
+
+## Hire me / Deployment
+
+**SVRF Deployment Package: $2,500, fixed price.** I set SVRF up on your repository and
+leave it running:
+
+- installed on your runners (GitHub-hosted or self-hosted), with the token or GitHub App
+  permissions scoped to your repository;
+- your real gate wired in (tests, build, lint, or a Lean/Rust/Python preset), with batch
+  size and parallel gates tuned to your CI;
+- branch protection, the PR status check and the live PR comment configured;
+- the dashboard published to GitHub Pages;
+- a before/after report of merges per hour and gates per merged PR on your own PRs;
+- 30 days of email support after go-live.
+
+Typical delivery is one week from access. Larger estates (monorepos, many repositories,
+air-gapped runners) and ongoing support are quoted separately.
+
+**Start:** [email me about a deployment](mailto:nybarius@gmail.com?subject=SVRF%20deployment&body=Repository%20or%20org%3A%0AGate%20command%20(tests%2Fbuild)%3A%0ARunners%20(hosted%20or%20self-hosted)%3A%0APRs%20per%20day%3A%0ATarget%20start%20date%3A) — or write to **nybarius@gmail.com** with your
+repository, gate command and runner setup. Replies are private; nothing goes on the
+issue tracker.
+
+Commercial licenses (competing or embedded products, warranty, indemnity) are covered in
+[COMMERCIAL.md](COMMERCIAL.md).
 
 ## License
 
