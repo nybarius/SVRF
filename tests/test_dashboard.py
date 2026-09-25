@@ -128,8 +128,21 @@ class Summary(unittest.TestCase):
         self.assertEqual([(b["family"], b["status"]) for b in bars],
                          [("F1", "BISECTED"), ("F2", "LANDED"), ("F3", "BISECTED"), ("F4", "LANDED")])
         f2 = bars[1]
-        self.assertEqual((f2["queued"], f2["start"], f2["end"], f2["landed"]), (H, H + 110, H + 160, H + 175))
+        self.assertEqual((f2["start"], f2["end"], f2["landed"]), (H + 110, H + 160, H + 175))
         self.assertIsNone(bars[0]["landed"])
+
+    def test_a_bisected_half_waits_from_when_its_parent_went_red_not_from_the_round_start(self):
+        bars = {b["family"]: b for b in self.s["timeline"] if b["round"] == "20260925T100000Z"}
+        self.assertEqual(bars["F1"]["queued"], H)
+        self.assertEqual(bars["F3"]["queued"], H + 105)      # F1 gated H+5 .. H+105
+        self.assertEqual(bars["F4"]["queued"], H + 210)      # F3 gated H+170 .. H+210
+
+    def test_a_landing_whose_tree_was_never_read_is_shown_unread_not_mismatched(self):
+        r = sample()[1]
+        r["families"][3]["status"] = "TREE_MISMATCH"
+        r["merges"][2]["observed_tree"] = None
+        f4 = dashboard.summarize([r])["trees"][0]["roots"][0]["children"][1]["children"][0]
+        self.assertEqual((f4["id"], f4["status"]), ("F4", "LANDED_TREE_UNREAD"))
 
     def test_no_receipts_is_an_empty_summary_not_an_error(self):
         s = dashboard.summarize([])
