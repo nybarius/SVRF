@@ -1,0 +1,25 @@
+# A Lean 4 project built with lake. Dependencies are resolved under the shared setup lock
+# (so two slots never fetch into one cache at once); builds stay incremental because each
+# slot's `.lake` directory is ignored by git and survives between gates.
+repo = "your-org/your-lean-repo"
+clone = "/var/lib/svrf/clone"
+state_dir = "/var/lib/svrf/state"
+
+[gate]
+setup = ["lake env true"]
+# Build the root library plus every changed module (see presets/lean4-gate.sh).
+commands = ["bash presets/lean4-gate.sh"]
+memory_gb = 10
+memory_reserve_gb = 8
+timeout_minutes = 120
+failing_pattern = "error:"
+env = { ROOT_LIB = "MyProject" }
+infra_patterns = ["external command 'git' exited", "failed to fetch"]
+
+[train]
+family_size = 8
+jobs = 2
+
+[repair]
+# The root import file lists one module per line: union-merge it.
+union_merge = ["MyProject.lean"]

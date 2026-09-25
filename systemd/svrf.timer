@@ -1,0 +1,12 @@
+# Five minutes after each round ends, the next round starts. An idle round costs one
+# rate-limit read (free) and one pull-request list.
+[Unit]
+Description=SVRF merge train: a round every 5 minutes
+
+[Timer]
+OnBootSec=5min
+OnActiveSec=1min
+OnUnitInactiveSec=5min
+
+[Install]
+WantedBy=timers.target

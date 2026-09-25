@@ -1,0 +1,12 @@
+# A Python project tested with pytest.
+repo = "your-org/your-repo"
+clone = "/var/lib/svrf/clone"
+state_dir = "/var/lib/svrf/state"
+
+[gate]
+setup = ["python3 -m pip install -q -r requirements.txt"]
+commands = ["python3 -m pytest -q -x"]
+failing_pattern = "^(FAILED|ERROR)"
+
+[repair]
+union_merge = ["CHANGELOG.md", "**/requirements*.txt"]

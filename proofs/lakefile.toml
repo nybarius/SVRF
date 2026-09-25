@@ -1,0 +1,5 @@
+name = "braided_train_proofs"
+defaultTargets = ["BraidedTrain"]
+
+[[lean_lib]]
+name = "BraidedTrain"

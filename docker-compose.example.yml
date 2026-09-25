@@ -1,0 +1,15 @@
+# docker compose -f docker-compose.example.yml up -d
+# Put your svrf.toml next to this file (clone and state_dir under /var/lib/svrf).
+services:
+  svrf:
+    image: svrf
+    build: .
+    restart: unless-stopped
+    environment:
+      GH_TOKEN: ${GH_TOKEN:?set GH_TOKEN to a token that can push and merge}
+    volumes:
+      - ./svrf.toml:/config/svrf.toml:ro
+      - svrf-state:/var/lib/svrf
+    command: ["watch"]
+volumes:
+  svrf-state:

@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "svrf"
+version = "0.1.0"
+description = "Silicon Valley Rocket Fuel: a merge train for repositories where agents open pull requests faster than CI can gate them one by one"
+readme = "README.md"
+license = "Apache-2.0"
+license-files = ["LICENSE", "NOTICE"]
+requires-python = ">=3.11"
+dependencies = []
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "Operating System :: POSIX :: Linux",
+  "Topic :: Software Development :: Version Control :: Git",
+]
+
+[project.scripts]
+svrf = "svrf.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]

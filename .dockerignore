@@ -1,0 +1,5 @@
+.git
+proofs/.lake
+**/__pycache__
+demo
+tests

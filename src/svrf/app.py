@@ -1,0 +1,62 @@
+"""Wiring: build the train's parts from a Config."""
+
+from __future__ import annotations
+
+import subprocess
+from pathlib import Path
+
+from . import history
+from .admission import Admission
+from .config import Config
+from .daemon import Daemon
+from .errors import ReadFailed
+from .gate import CommandGate, MemoryGuard
+from .git import RealGit
+from .github import RealGitHub
+from .globs import PathSet
+
+
+def ensure_clone(config: Config) -> None:
+    """Clone the repository into `config.clone` if it is not there yet."""
+    clone = Path(config.clone)
+    if (clone / ".git").exists() or (clone / "HEAD").exists():
+        return
+    clone.parent.mkdir(parents=True, exist_ok=True)
+    done = subprocess.run(["git", "-C", str(clone.parent), "clone", "-q", f"https://github.com/{config.repo}.git",
+                           str(clone)], capture_output=True, text=True)
+    if done.returncode != 0:
+        raise ReadFailed(f"CLONE_FAILED:{done.stderr.strip()[:160]}")
+
+
+def kind_of(config: Config):
+    return history.path_kind(PathSet(config.history.tests), PathSet(config.history.docs))
+
+
+def build(config: Config, *, github=None, dry_run: bool = False, clock=None, sleep=None) -> Daemon:
+    union = config.union_paths
+    git = RealGit(config.clone, identity=(config.git_name, config.git_email), remote=config.remote,
+                  base=config.base, union=union)
+    gate = CommandGate(config.clone, config.worktrees, config.train.jobs, config.gate.commands,
+                       setup=config.gate.setup, logs=config.logs, timeout_minutes=config.gate.timeout_minutes,
+                       infra_patterns=config.gate.infra_patterns, failing_pattern=config.gate.failing_pattern,
+                       env=config.gate.env)
+    kind = kind_of(config)
+    prefixes = tuple(config.history.refactor_prefixes)
+    admission = Admission(git, order=config.history.order, kind=kind, refactor_prefixes=prefixes,
+                          command=config.admission_command)
+    memory = MemoryGuard(need_gb=config.gate.memory_gb, reserve_gb=config.gate.memory_reserve_gb) \
+        if config.gate.memory_gb else None
+    extra = {}
+    if clock is not None:
+        extra["clock"] = clock
+    if sleep is not None:
+        extra["sleep"] = sleep
+    return Daemon(git, github or RealGitHub(config.repo), gate, admission, state_dir=config.state_dir,
+                  receipts=config.receipts, base=config.base, dry_run=dry_run, rate_floor=config.train.rate_floor,
+                  lock_path=config.lock, hold_label=config.hold_label, is_union=union, repair=config.repair,
+                  reland=config.history.reland and config.history.order != "off", kind=kind,
+                  history_verdict=lambda b, h: history.verdict(git, b, h, kind, prefixes),
+                  train_options={"jobs": config.train.jobs, "family_size": config.train.family_size,
+                                 "memory": memory, "rate_floor": config.train.rate_floor,
+                                 "max_rounds": config.train.max_rounds, "comment": config.train.comment},
+                  **extra)

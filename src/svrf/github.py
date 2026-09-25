@@ -1,0 +1,87 @@
+"""GitHub through the `gh` CLI, every call counted and every call naming its repository.
+
+One GraphQL list per round (`gh pr list`); REST for everything else. The rate budget
+read (`gh api rate_limit`) is free and is the one call that names no repository.
+"""
+
+from __future__ import annotations
+
+import json
+import subprocess
+
+from .errors import ReadFailed, classify_gh_failure
+
+
+def gh_argv(args: list[str], repo: str) -> list[str]:
+    """The `gh` command line, refused unless it names its repository (`--repo <repo>` or a
+    `repos/<repo>/` path)."""
+    bound = (("--repo" in args and args.index("--repo") + 1 < len(args) and args[args.index("--repo") + 1] == repo)
+             or any(a.startswith(f"repos/{repo}/") or a == f"repos/{repo}" for a in args)
+             or list(args) == ["api", "rate_limit"])
+    if not bound:
+        raise ValueError(f"gh call names no repository: {args}")
+    return ["gh", *args]
+
+
+class RealGitHub:
+    SNAPSHOT_FIELDS = "number,title,body,isDraft,headRefName,headRefOid,baseRefName,labels,isCrossRepository"
+
+    def __init__(self, repo: str, limit: int = 300):
+        self.repo = repo
+        self.limit = limit
+        self.calls = {"graphql": 0, "rest": 0}
+
+    def _gh(self, args: list[str], kind: str | None) -> str:
+        argv = gh_argv(args, self.repo)
+        if kind:
+            self.calls[kind] += 1
+        done = subprocess.run(argv, capture_output=True, text=True)
+        if done.returncode != 0:
+            classify_gh_failure(done.returncode, done.stderr or done.stdout)
+        return done.stdout
+
+    def rate_limit(self) -> dict:
+        resources = json.loads(self._gh(["api", "rate_limit"], None))["resources"]
+        return {k: {"remaining": resources[k]["remaining"], "reset": resources[k]["reset"]}
+                for k in ("graphql", "core")}
+
+    def snapshot(self) -> list[dict]:
+        return json.loads(self._gh(["pr", "list", "--repo", self.repo, "--state", "open", "--limit", str(self.limit),
+                                    "--json", self.SNAPSHOT_FIELDS], "graphql"))
+
+    def pull(self, number: int) -> dict:
+        value = json.loads(self._gh(["api", f"repos/{self.repo}/pulls/{number}"], "rest"))
+        return {"number": number, "head_sha": value["head"]["sha"], "head_ref": value["head"]["ref"],
+                "mergeable": value.get("mergeable"), "state": value.get("state"), "draft": value.get("draft")}
+
+    def pulls_with_head(self, branch: str) -> list[dict]:
+        """Every pull request (any state) whose head is `branch`: a stacked PR's parent."""
+        owner = self.repo.split("/")[0]
+        value = json.loads(self._gh(["api", f"repos/{self.repo}/pulls?state=all&per_page=20&head={owner}:{branch}"],
+                                    "rest"))
+        return [{"number": v["number"], "state": v.get("state"), "merged_at": v.get("merged_at")} for v in value]
+
+    def retarget(self, number: int, base: str) -> None:
+        self._gh(["api", "-X", "PATCH", f"repos/{self.repo}/pulls/{number}", "-f", f"base={base}"], "rest")
+
+    def ready(self, number: int) -> None:
+        self._gh(["pr", "ready", str(number), "--repo", self.repo], "graphql")
+
+    def merge(self, number: int, sha: str) -> str:
+        """Merge with a merge commit, pinned to `sha`: GitHub refuses if the head moved."""
+        value = json.loads(self._gh(["api", "-X", "PUT", f"repos/{self.repo}/pulls/{number}/merge",
+                                     "-f", "merge_method=merge", "-f", f"sha={sha}"], "rest"))
+        if not value.get("merged") or not value.get("sha"):
+            raise ReadFailed(f"MERGE_NOT_CONFIRMED:{value.get('message', '')[:120]}")
+        return value["sha"]
+
+    def comment(self, number: int, body: str) -> None:
+        self._gh(["api", f"repos/{self.repo}/issues/{number}/comments", "-f", f"body={body}"], "rest")
+
+    def close(self, number: int) -> None:
+        self._gh(["api", "-X", "PATCH", f"repos/{self.repo}/pulls/{number}", "-f", "state=closed"], "rest")
+
+    def open_pr(self, head: str, base: str, title: str, body: str) -> int:
+        value = json.loads(self._gh(["api", f"repos/{self.repo}/pulls", "-f", f"title={title}",
+                                     "-f", f"head={head}", "-f", f"base={base}", "-f", f"body={body}"], "rest"))
+        return int(value["number"])

@@ -1,0 +1,43 @@
+# svrf.toml: one repository's merge train. Only `repo` and `gate.commands` are required.
+
+repo = "your-org/your-repo"        # owner/name on GitHub
+base = "main"                      # the branch pull requests land on
+clone = "/var/lib/svrf/clone"      # the train's own clone (created on first run)
+state_dir = "/var/lib/svrf/state"  # held memory, receipts, worktree slots, logs, lock
+git_name = "svrf"                  # identity of the merge commits the train makes
+git_email = "svrf@localhost"
+
+[gate]
+# Run in a worktree of the folded tree; green iff every command exits 0.
+commands = ["make test"]
+setup = []                  # run first, under one lock shared by all slots
+timeout_minutes = 60        # a timeout is retried later, never counted red
+memory_gb = 0               # memory one gate may use; 0 turns the memory guard off
+memory_reserve_gb = 2
+infra_patterns = []         # extra regexes meaning "the gate could not run"
+failing_pattern = "error|FAIL|Traceback"
+
+[train]
+family_size = 8             # pull requests folded into one gated tree
+jobs = 2                    # families gated in parallel (one worktree slot each)
+max_rounds = 3              # replanning rounds within one tick
+rate_floor = 200            # pause while GitHub's remaining budget is below this
+comment = true              # comment on each merged pull request
+interval_seconds = 300      # `svrf watch` sleeps this long between rounds
+
+[labels]
+hold = "train:hold"         # a pull request with this label is left alone
+
+[repair]
+enabled = true
+# Files whose lines are independent entries: merged by union instead of conflicting.
+union_merge = ["CHANGELOG.md"]
+
+[history]
+order = "off"               # "tests-first": refuse code committed before its tests
+reland = true               # re-land refused histories in order instead of holding them
+tests = ["tests/**", "test_*", "*_test.*"]
+docs = ["docs/**", "*.md"]
+
+[admission]
+command = ""                # optional extra check; exit 0 admits, other codes hold
