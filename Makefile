@@ -2,8 +2,8 @@ PYTHON ?= python3
 
 .PHONY: check test denylist proofs demo docker wheel
 
-## check: everything CI runs (tests, denylist, proofs)
-check: test proofs
+## check: everything CI runs (tests, denylist, proofs, docker build + smoke test)
+check: test proofs docker
 
 ## test: the Python suite, including the denylist scan and the demo end to end
 test:
@@ -23,9 +23,10 @@ proofs:
 demo:
 	$(PYTHON) demo/run_demo.py
 
-## docker: build the container image
+## docker: build the container image and smoke test it (what CI's "container" job runs)
 docker:
 	docker build -t svrf .
+	docker run --rm --entrypoint svrf svrf --version
 
 ## wheel: build the sdist/wheel (python -m build) and smoke test installing it in a fresh venv
 wheel:

@@ -24,6 +24,12 @@ project intends to follow [Semantic Versioning](https://semver.org/) once it rea
   `docs/RELEASING.md`. `make wheel` runs the same build-and-install-in-a-fresh-venv check
   locally.
 
+### Changed
+
+- `make check` now also builds and smoke tests the container image, matching every job
+  `.github/workflows/ci.yml` runs; that CI job now calls `make docker` instead of
+  duplicating its two steps.
+
 ## [0.1.0] - 2026-09-25
 
 Initial public release: the braided merge train (`svrf.train.Train`), the command gate,

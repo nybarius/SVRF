@@ -162,13 +162,15 @@ rate, GitHub's merge queue is the simpler choice.
 ## Development
 
 ```sh
-make check    # Python tests (with the denylist scan and the demo) and the Lean proofs
+make check    # everything CI runs: Python tests (denylist scan + demo), Lean proofs, docker build
 make demo
+make wheel    # sdist/wheel, smoke tested by installing into a fresh venv
 ```
 
 The project has no Python dependencies beyond the standard library. The proofs need
 [elan](https://github.com/leanprover/elan); the toolchain is pinned in
-`proofs/lean-toolchain`.
+`proofs/lean-toolchain`. `make check` also builds the container image, so it needs
+Docker.
 
 ## License
 
