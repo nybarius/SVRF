@@ -35,6 +35,8 @@ RULES: dict[str, dict[str, str]] = {
     "union-merge": {"lean": "change_comm", "check": "union_lines"},
     "speculative-stacking": {"lean": "stack_lands_gated", "check": "Train.round"},
     "speculation-void": {"lean": "stackStatus_void_iff", "check": "Train.round"},
+    "bisect-holds-exactly-red": {"lean": "settle_outcome", "check": "Train.settle_red"},
+    "bisect-gate-bound": {"lean": "bisection_gates_le", "check": "Train.settle_red"},
 }
 
 
