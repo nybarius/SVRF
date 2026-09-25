@@ -34,3 +34,7 @@ open BraidedTrain
 #print axioms stackStatus_landed_iff
 #print axioms stackStatus_void_iff
 #print axioms stackStatus_bisected_iff
+#print axioms settle_outcome
+#print axioms settle_gates_le
+#print axioms le_two_pow_clog2
+#print axioms bisection_gates_le

@@ -67,6 +67,8 @@ states it and the function or method that enforces it in the running train.
 | `union-merge` | `change_comm` | `union_lines` |
 | `speculative-stacking` | `stack_lands_gated` | `Train.round` |
 | `speculation-void` | `stackStatus_void_iff` | `Train.round` |
+| `bisect-holds-exactly-red` | `settle_outcome` | `Train.settle_red` |
+| `bisect-gate-bound` | `bisection_gates_le` | `Train.settle_red` |
 
 `tests/test_proof_map.py` checks this table against `svrf.rules.RULES` directly: every
 rule name and theorem name in the code must also appear in this file, every named theorem
@@ -84,6 +86,7 @@ the test fails otherwise.
 | `BraidedTrain/Reland.lean` | Re-landing a history as tests-then-code-then-docs commits lands the identical tree (`reland_tree`), so any tree-reading gate's verdict is unchanged (`reland_gate`). |
 | `BraidedTrain/Union.lean` | The line-level union merge (`unionLines`, the model of `union_lines`): exact associativity (`unionLines_assoc`), commutation up to line order (`unionLines_comm`, sharp by `union_order_visible`), and at the path level `change_comm` / `family_perm` under `UnionOnlyOverlap`, the union repair's hypothesis. |
 | `BraidedTrain/Stacking.lean` | Speculative stacking: families gated on the fold of every family before them land gated trees at every family boundary (`stack_lands_gated`); a stacked verdict does not carry past a red family (`stack_fold_through`, `stacked_verdict_does_not_carry`); the round's bookkeeping voids exactly the families above the first red one (`stackStatus_void_iff`, `stackStatus_landed_iff`, `stackStatus_bisected_iff`). |
+| `BraidedTrain/Bisection.lean` | Bisection of a red family (`settle`, the model of `Train.settle_red`) terminates (well-founded on family length), holds exactly the bad pull requests and lands the rest under a monotone gate (`settle_outcome`), and costs at most `2·r·⌈log₂ n⌉ + 1` gates including the family's own (`settle_gates_le`, `bisection_gates_le`). |
 | `BraidedTrain/Examples.lean` | Concrete instances that exercise the general lemmas against small, fully-written-out cases. |
 | `CheckAxioms.lean` | Prints the axioms each main theorem depends on; `make proofs` fails if any line mentions `sorryAx` or `Classical.choice`. |
 
@@ -113,9 +116,6 @@ separately checks the source text of `proofs/BraidedTrain/*.lean` for `sorry` an
 
 Further modelling work this directory does not yet cover:
 
-- **Termination and gate count of bisection.** `Train.settle_red` halves a red family and
-  regates each half; show this process terminates (family size strictly decreases) and bound
-  the number of gates it costs in terms of the number of red pull requests.
 - **Maximality of the chosen family.** `svrf.rules.choose_families` picks the largest
   pairwise-compatible set the enumeration finds; state and prove that no strictly larger
   pairwise-compatible set of the same candidate pull requests exists (maximum, not just

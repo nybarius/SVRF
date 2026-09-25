@@ -4,4 +4,5 @@ import BraidedTrain.Interleaving
 import BraidedTrain.Reland
 import BraidedTrain.Union
 import BraidedTrain.Stacking
+import BraidedTrain.Bisection
 import BraidedTrain.Examples
