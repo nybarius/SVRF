@@ -18,6 +18,11 @@ project intends to follow [Semantic Versioning](https://semver.org/) once it rea
   and pull request templates.
 - `action.yml`: a composite GitHub Action that runs one `svrf run --once` round, with a
   scheduled-workflow example in `docs/ACTION.md`.
+- `.github/workflows/release.yml`: builds and pushes the container image to
+  `ghcr.io/nybarius/svrf` on a version tag, and builds/smoke-tests the `pip`-installable
+  wheel (optionally publishing it to PyPI once `PYPI_API_TOKEN` is set); see
+  `docs/RELEASING.md`. `make wheel` runs the same build-and-install-in-a-fresh-venv check
+  locally.
 
 ## [0.1.0] - 2026-09-25
 

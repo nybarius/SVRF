@@ -1,0 +1,81 @@
+name: release
+
+# Builds and publishes on a version tag only (vX.Y.Z). Pull requests and ordinary pushes
+# to main build everything but push nothing (see the `if:` guards below), so this
+# workflow doubles as a build check without needing a tag.
+on:
+  push:
+    branches: [main]
+    tags: ["v*.*.*"]
+  pull_request:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  container:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Log in to GHCR
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Compute image tags
+        id: tags
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          {
+            echo "tags<<EOF"
+            echo "ghcr.io/nybarius/svrf:${version}"
+            echo "ghcr.io/nybarius/svrf:latest"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+      - name: Build (and push on a tag)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: ${{ startsWith(github.ref, 'refs/tags/v') }}
+          tags: ${{ startsWith(github.ref, 'refs/tags/v') && steps.tags.outputs.tags || 'svrf:build-check' }}
+      - name: Smoke test the built image
+        if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
+        run: docker run --rm --entrypoint svrf svrf:build-check --version
+
+  wheel:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Build sdist and wheel
+        run: |
+          python -m pip install --quiet build
+          python -m build
+      - name: Install the built wheel in a fresh venv and smoke test it
+        run: |
+          python -m venv /tmp/svrf-venv
+          /tmp/svrf-venv/bin/pip install --quiet dist/svrf-*.whl
+          /tmp/svrf-venv/bin/svrf --version
+      - uses: actions/upload-artifact@v4
+        with:
+          name: svrf-dist
+          path: dist/
+      - name: Publish to PyPI
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+        run: |
+          if [ -z "${TWINE_PASSWORD:-}" ]; then
+            echo "PYPI_API_TOKEN is not set; skipping publish (see docs/RELEASING.md)."
+            exit 0
+          fi
+          python -m pip install --quiet twine
+          twine upload dist/*

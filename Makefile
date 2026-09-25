@@ -1,6 +1,6 @@
 PYTHON ?= python3
 
-.PHONY: check test denylist proofs demo docker
+.PHONY: check test denylist proofs demo docker wheel
 
 ## check: everything CI runs (tests, denylist, proofs)
 check: test proofs
@@ -26,3 +26,13 @@ demo:
 ## docker: build the container image
 docker:
 	docker build -t svrf .
+
+## wheel: build the sdist/wheel (python -m build) and smoke test installing it in a fresh venv
+wheel:
+	rm -rf dist .venv-wheel-check
+	$(PYTHON) -m venv .venv-wheel-check
+	.venv-wheel-check/bin/pip install --quiet --upgrade pip build
+	.venv-wheel-check/bin/python -m build
+	.venv-wheel-check/bin/pip install --quiet dist/svrf-*.whl
+	.venv-wheel-check/bin/svrf --version
+	rm -rf .venv-wheel-check
