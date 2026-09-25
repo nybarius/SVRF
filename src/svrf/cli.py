@@ -7,6 +7,7 @@
     svrf status              held pull requests and the last round
     svrf forget 12,15        drop pull requests from the held memory
     svrf config              print the parsed configuration
+    svrf dashboard --receipts DIR --out DIR   a static site from round receipts (no config needed)
 
 Every command reads `--config` (default: $SVRF_CONFIG, else ./svrf.toml).
 Exit codes: 0 ok, 1 a landed tree did not match its gated tree, 2 bad configuration,
@@ -23,7 +24,7 @@ import sys
 import time
 from pathlib import Path
 
-from . import __version__
+from . import __version__, dashboard
 from .app import build, ensure_clone
 from .config import ConfigError, load
 from .errors import ReadFailed
@@ -82,7 +83,16 @@ def main(argv: list[str] | None = None) -> int:
     forget = sub.add_parser("forget", help="drop pull requests from the held memory")
     forget.add_argument("numbers")
     sub.add_parser("config", help="print the parsed configuration")
+    dash = sub.add_parser("dashboard", help="write a static site (index.html) from round receipts")
+    dash.add_argument("--receipts", required=True, help="directory of train-*.json receipts")
+    dash.add_argument("--out", required=True, help="directory to write index.html into")
+    dash.add_argument("--title", default="SVRF merge train")
     args = ap.parse_args(argv)
+
+    if args.command == "dashboard":
+        index = dashboard.build(Path(args.receipts), Path(args.out), title=args.title)
+        _print({"dashboard": str(index)})
+        return 0
 
     try:
         config = load(args.config)
