@@ -1,0 +1,109 @@
+{
+ "alerts": [],
+ "api_calls": {
+  "graphql": 1,
+  "rest": 5
+ },
+ "config": {
+  "dry_run": false,
+  "family_size": 8,
+  "jobs": 2,
+  "max_rounds": 3,
+  "memory": {
+   "need_gb": 10,
+   "reserve_gb": 8
+  },
+  "rate_floor": 200
+ },
+ "families": [
+  {
+   "base": "2ac48aba935cf775df3dc2fa7259c4b02e395a3b",
+   "commit": "2a7651da36c4285b74a9a2dca16ec7692d7377ea",
+   "gate": 0,
+   "id": "F1",
+   "landed": "b31df1459698adad2b235bbc5b4198efcc54d09b",
+   "parent": null,
+   "prs": [
+    136
+   ],
+   "status": "LANDED",
+   "steps": [
+    {
+     "commit": "2a7651da36c4285b74a9a2dca16ec7692d7377ea",
+     "number": 136,
+     "tree": "92be210846679b3c735c379bcf72267692581e17"
+    }
+   ],
+   "tree": "92be210846679b3c735c379bcf72267692581e17"
+  }
+ ],
+ "finished": "20260925T190551Z",
+ "gates": [
+  {
+   "base": "2ac48aba935cf775df3dc2fa7259c4b02e395a3b",
+   "commit": "2a7651da36c4285b74a9a2dca16ec7692d7377ea",
+   "failing": [],
+   "family": "F1",
+   "green": true,
+   "prs": [
+    136
+   ],
+   "seconds": 24.131,
+   "slot": "slot-0",
+   "started": 1790363113.5413234,
+   "tree": "92be210846679b3c735c379bcf72267692581e17"
+  }
+ ],
+ "holds": [],
+ "merges": [
+  {
+   "at": 1790363150.9403076,
+   "family": "F1",
+   "gated_tree": "92be210846679b3c735c379bcf72267692581e17",
+   "head": "5a3819dd0838b319cb39a5d898514bfaedb3d0ed",
+   "identity": true,
+   "merge": "b31df1459698adad2b235bbc5b4198efcc54d09b",
+   "number": 136,
+   "observed_tree": "92be210846679b3c735c379bcf72267692581e17",
+   "parents": [
+    "2ac48aba935cf775df3dc2fa7259c4b02e395a3b",
+    "5a3819dd0838b319cb39a5d898514bfaedb3d0ed"
+   ]
+  }
+ ],
+ "out": {},
+ "pairs": {
+  "conflicts": [],
+  "read": 0,
+  "unreadable": []
+ },
+ "pending": [],
+ "prs": {
+  "136": {
+   "draft": false,
+   "head_ref": "agent/pr-136",
+   "head_sha": "f8389e9cfa8cdab3bcbb3548feb2f7e3a6301073",
+   "number": 136,
+   "title": "Change 136"
+  }
+ },
+ "rate_waits": [],
+ "requested": [
+  136
+ ],
+ "retry_later": [],
+ "rounds": [
+  {
+   "base": "2ac48aba935cf775df3dc2fa7259c4b02e395a3b",
+   "families": [
+    "F1"
+   ],
+   "queue": [
+    136
+   ]
+  }
+ ],
+ "schema_version": "svrf.receipt/1",
+ "started": "20260925T190511Z",
+ "stopped": false
+}

@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="360" height="330" viewBox="0 0 360 330" role="img" aria-label="Gate runs per merged PR">
+<title>Gate runs per merged PR</title>
+<style>
+.t{font-family:system-ui,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;fill:#0b0b0b} .s{font-family:system-ui,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;fill:#52514e} .m{font-family:system-ui,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;fill:#7a7873}
+.card{fill:#fcfcfb;stroke:rgba(11,11,11,.10)} .grid{stroke:#e7e6e0} .base{stroke:#c3c2b7}
+.before{fill:#b9b8b0} .after{fill:#2a78d6} .good{fill:#0ca30c} .accent{fill:#2a78d6}
+.chipbg{fill:rgba(42,120,214,.10)} .chip{font-family:system-ui,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;fill:#1c5cab;font-weight:650}
+@media (prefers-color-scheme: dark) {
+ .t{fill:#f5f5f2} .s{fill:#c3c2b7} .m{fill:#8f8d86} .card{fill:#1a1a19;stroke:rgba(255,255,255,.10)}
+ .grid{stroke:#2c2c2a} .base{stroke:#45453f} .before{fill:#5b5a55} .after{fill:#3987e5}
+ .accent{fill:#3987e5} .chipbg{fill:rgba(57,135,229,.18)} .chip{fill:#86b6ef}
+}</style>
+<rect class="card" x="0.5" y="0.5" width="359" height="329" rx="14"/>
+<text class="t" x="22" y="36" font-size="17" font-weight="650">Gate runs per merged PR</text>
+<text class="m" x="22" y="58" font-size="13">bisection of red batches included</text>
+<path class="before" d="M84.7,286.0V161.6Q84.7,155.6 90.7,155.6H142.7Q148.7,155.6 148.7,161.6V286.0Z"/>
+<text class="t" x="116.66666666666666" y="145.56521739130434" font-size="17" font-weight="650" text-anchor="middle">1.00</text>
+<text class="s" x="116.66666666666666" y="310" font-size="13" text-anchor="middle">one by one</text>
+<path class="after" d="M211.3,286.0V189.0Q211.3,183.0 217.3,183.0H269.3Q275.3,183.0 275.3,189.0V286.0Z"/>
+<text class="t" x="243.33333333333331" y="172.95652173913044" font-size="17" font-weight="650" text-anchor="middle">0.79</text>
+<text class="s" x="243.33333333333331" y="310" font-size="13" text-anchor="middle">with SVRF</text>
+<line class="base" x1="22" x2="338" y1="286" y2="286"/>
+<rect class="chipbg" x="200.4" y="72" width="138" height="26" rx="13"/>
+<text class="chip" x="269.2" y="90" font-size="13" text-anchor="middle">39 PRs, 31 gates</text>
+</svg>

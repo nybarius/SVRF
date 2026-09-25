@@ -1,6 +1,6 @@
 PYTHON ?= python3
 
-.PHONY: check test denylist proofs demo docker wheel
+.PHONY: check test denylist proofs demo docker wheel images screenshots dashboard-sample
 
 ## check: everything CI runs (tests, denylist, proofs, docker build + smoke test)
 check: test proofs docker
@@ -37,3 +37,15 @@ wheel:
 	.venv-wheel-check/bin/pip install --quiet dist/svrf-*.whl
 	.venv-wheel-check/bin/svrf --version
 	rm -rf .venv-wheel-check
+
+## images: regenerate docs/img/*.svg from docs/BENCHMARK.md and docs/demo.cast (a test checks they are fresh)
+images:
+	$(PYTHON) demo/readme_images.py
+
+## screenshots: docs/img/dashboard*.png from the sample receipts (needs playwright + chromium locally)
+screenshots:
+	$(PYTHON) demo/screenshot_dashboard.py
+
+## dashboard-sample: build the dashboard from the bundled anonymized receipts into build/dashboard/
+dashboard-sample:
+	PYTHONPATH=src $(PYTHON) -m svrf dashboard --receipts demo/sample-receipts --out build/dashboard --title "SVRF merge train (sample data)"

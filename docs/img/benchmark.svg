@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1120" height="466" viewBox="0 0 1120 466" role="img" aria-label="SVRF benchmark: merges per hour, wall time per PR, gates per PR">
+<title>SVRF benchmark: merges per hour, wall time per PR, gates per PR</title>
+<style>
+.t{font-family:system-ui,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;fill:#0b0b0b} .s{font-family:system-ui,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;fill:#52514e} .m{font-family:system-ui,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;fill:#7a7873}
+.card{fill:#fcfcfb;stroke:rgba(11,11,11,.10)} .grid{stroke:#e7e6e0} .base{stroke:#c3c2b7}
+.before{fill:#b9b8b0} .after{fill:#2a78d6} .good{fill:#0ca30c} .accent{fill:#2a78d6}
+.chipbg{fill:rgba(42,120,214,.10)} .chip{font-family:system-ui,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;fill:#1c5cab;font-weight:650}
+@media (prefers-color-scheme: dark) {
+ .t{fill:#f5f5f2} .s{fill:#c3c2b7} .m{fill:#8f8d86} .card{fill:#1a1a19;stroke:rgba(255,255,255,.10)}
+ .grid{stroke:#2c2c2a} .base{stroke:#45453f} .before{fill:#5b5a55} .after{fill:#3987e5}
+ .accent{fill:#3987e5} .chipbg{fill:rgba(57,135,229,.18)} .chip{fill:#86b6ef}
+}</style>
+<rect class="card" x="0.5" y="0.5" width="359" height="329" rx="14"/>
+<text class="t" x="22" y="36" font-size="17" font-weight="650">Merges per hour</text>
+<text class="m" x="22" y="58" font-size="13">same machine, same repository</text>
+<path class="before" d="M84.7,286.0V243.7Q84.7,237.7 90.7,237.7H142.7Q148.7,237.7 148.7,243.7V286.0Z"/>
+<text class="t" x="116.66666666666666" y="227.66666666666666" font-size="17" font-weight="650" text-anchor="middle">5.8</text>
+<text class="s" x="116.66666666666666" y="310" font-size="13" text-anchor="middle">before</text>
+<path class="after" d="M211.3,286.0V156.2Q211.3,150.2 217.3,150.2H269.3Q275.3,150.2 275.3,156.2V286.0Z"/>
+<text class="t" x="243.33333333333331" y="140.16666666666666" font-size="17" font-weight="650" text-anchor="middle">16.3</text>
+<text class="s" x="243.33333333333331" y="310" font-size="13" text-anchor="middle">with SVRF</text>
+<line class="base" x1="22" x2="338" y1="286" y2="286"/>
+<rect class="chipbg" x="291.6" y="72" width="46" height="26" rx="13"/>
+<text class="chip" x="314.8" y="90" font-size="13" text-anchor="middle">2.8×</text>
+<rect class="card" x="380.5" y="0.5" width="359" height="329" rx="14"/>
+<text class="t" x="402" y="36" font-size="17" font-weight="650">Wall time per PR</text>
+<text class="m" x="402" y="58" font-size="13">lower is better</text>
+<path class="before" d="M464.7,286.0V157.0Q464.7,151.0 470.7,151.0H522.7Q528.7,151.0 528.7,157.0V286.0Z"/>
+<text class="t" x="496.6666666666667" y="141.0" font-size="17" font-weight="650" text-anchor="middle">~3 min</text>
+<text class="s" x="496.6666666666667" y="310" font-size="13" text-anchor="middle">before</text>
+<path class="after" d="M591.3,286.0V256.8Q591.3,250.8 597.3,250.8H649.3Q655.3,250.8 655.3,256.8V286.0Z"/>
+<text class="t" x="623.3333333333334" y="240.75" font-size="17" font-weight="650" text-anchor="middle">~47 s</text>
+<text class="s" x="623.3333333333334" y="310" font-size="13" text-anchor="middle">with SVRF</text>
+<line class="base" x1="402" x2="718" y1="286" y2="286"/>
+<rect class="chipbg" x="565.2" y="72" width="153" height="26" rx="13"/>
+<text class="chip" x="641.6" y="90" font-size="13" text-anchor="middle">2.5–3.5 min → 47 s</text>
+<rect class="card" x="760.5" y="0.5" width="359" height="329" rx="14"/>
+<text class="t" x="782" y="36" font-size="17" font-weight="650">Gate runs per merged PR</text>
+<text class="m" x="782" y="58" font-size="13">bisection of red batches included</text>
+<path class="before" d="M844.7,286.0V161.6Q844.7,155.6 850.7,155.6H902.7Q908.7,155.6 908.7,161.6V286.0Z"/>
+<text class="t" x="876.6666666666666" y="145.56521739130434" font-size="17" font-weight="650" text-anchor="middle">1.00</text>
+<text class="s" x="876.6666666666666" y="310" font-size="13" text-anchor="middle">one by one</text>
+<path class="after" d="M971.3,286.0V189.0Q971.3,183.0 977.3,183.0H1029.3Q1035.3,183.0 1035.3,189.0V286.0Z"/>
+<text class="t" x="1003.3333333333333" y="172.95652173913044" font-size="17" font-weight="650" text-anchor="middle">0.79</text>
+<text class="s" x="1003.3333333333333" y="310" font-size="13" text-anchor="middle">with SVRF</text>
+<line class="base" x1="782" x2="1098" y1="286" y2="286"/>
+<rect class="chipbg" x="960.4" y="72" width="138" height="26" rx="13"/>
+<text class="chip" x="1029.2" y="90" font-size="13" text-anchor="middle">39 PRs, 31 gates</text>
+<rect class="card" x="0.5" y="350.5" width="1119" height="115" rx="14"/>
+<text class="m" x="22" y="380" font-size="13">Best batch of the day</text>
+<text class="t" x="22.0" y="420" font-size="32" font-weight="700" letter-spacing="-0.5">13</text>
+<text class="s" x="22.0" y="444" font-size="14">pull requests landed</text>
+<text class="t" x="291.0" y="420" font-size="32" font-weight="700" letter-spacing="-0.5">2</text>
+<text class="s" x="291.0" y="444" font-size="14">gate runs</text>
+<text class="t" x="560.0" y="420" font-size="32" font-weight="700" letter-spacing="-0.5">4:46</text>
+<text class="s" x="560.0" y="444" font-size="14">minutes, end to end</text>
+<text class="t" x="829.0" y="420" font-size="32" font-weight="700" letter-spacing="-0.5">0</text>
+<text class="s" x="829.0" y="444" font-size="14">landed-tree mismatches</text>
+</svg>
