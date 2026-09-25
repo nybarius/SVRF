@@ -195,6 +195,17 @@ the pairwise conflicts, each family with its planned tree, every gate with its o
 every merge with its gated and observed tree, holds, alerts, rate waits and API call
 counts. `svrf dashboard` renders them ([docs/DASHBOARD.md](docs/DASHBOARD.md)). `<state_dir>/held.json` lists every held pull request with its reason.
 
+## On the pull request
+
+The train's decision is also visible without leaving GitHub: a `svrf` commit status on
+each candidate head (`queued (position 3, batch F2)` → `gating batch F2 with #12 #15` →
+`landed in batch F2 (gate 1m32s)` or `held: <reason>`), and one living comment per pull
+request, created once and edited in place, with a mini timeline, the batch it gated with,
+and, on hold, the failing lines and what to do next. See
+[docs/PR_SURFACE.md](docs/PR_SURFACE.md) for a rendered example. Controlled by
+`ui.pr_comments` and `ui.status_checks` (both default on); every write is rate-limit aware
+(an unchanged comment is never re-edited) and counted in the receipt's `surface` field.
+
 ## Configuration
 
 `svrf.toml` ([full example](svrf.example.toml), presets in [presets/](presets/)).
@@ -225,6 +236,9 @@ Unknown keys are refused.
 | `history.reland` | `true` | re-land refused histories in order instead of holding them |
 | `history.tests`, `history.docs` | common globs | how paths are classified for the history check |
 | `admission.command` | `""` | extra admission check; exit 0 admits, 126/127 means "could not run" |
+| `ui.pr_comments` | `true` | one living comment per pull request (see [docs/PR_SURFACE.md](docs/PR_SURFACE.md)) |
+| `ui.status_checks` | `true` | a `svrf` commit status on each candidate head |
+| `ui.dashboard_url` | `""` | optional: linked from the status as `target_url` |
 
 Gate commands see `SVRF_BASE`, `SVRF_COMMIT`, `SVRF_LABEL` and `SVRF_CHANGED_FILES` (a
 file listing the changed paths), so a gate can build only what changed.
@@ -258,7 +272,6 @@ own to run, Mergify, Graphite, or Aviator are that trade-off.
   it ships only after it matches a full check on historical commits with zero
   disagreements, as something you opt into, never a change in what a green gate means.
 * A GitHub App mode that mints its own installation tokens.
-* Status checks on pull requests while they wait.
 
 ## Development
 

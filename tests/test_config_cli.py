@@ -27,6 +27,18 @@ class Config(unittest.TestCase):
         self.assertEqual((config.train.family_size, config.train.jobs), (8, 2))
         self.assertTrue(config.repair)
         self.assertFalse(config.union_paths("package-lock.json"))
+        self.assertEqual((config.ui.pr_comments, config.ui.status_checks, config.ui.dashboard_url),
+                         (True, True, ""))
+
+    def test_the_ui_section_can_turn_either_surface_off_and_set_a_dashboard_url(self):
+        config = from_dict({**MINIMAL, "ui": {"pr_comments": False, "status_checks": False,
+                                              "dashboard_url": "https://dash.example/x"}})
+        self.assertEqual((config.ui.pr_comments, config.ui.status_checks, config.ui.dashboard_url),
+                         (False, False, "https://dash.example/x"))
+
+    def test_an_unknown_ui_key_is_refused(self):
+        with self.assertRaises(ConfigError):
+            from_dict({**MINIMAL, "ui": {"comments": True}})
 
     def test_reland_is_wired_from_the_admission_command_even_with_the_built_in_check_off(self):
         # history.order == "off" (the default) used to force reland_enabled False no

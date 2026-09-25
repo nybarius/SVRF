@@ -41,3 +41,8 @@ docs = ["docs/**", "*.md"]
 
 [admission]
 command = ""                # optional extra check; exit 0 admits, other codes hold
+
+[ui]
+pr_comments = true          # one living comment per pull request (see docs/PR_SURFACE.md)
+status_checks = true        # a "svrf" commit status on each candidate head
+dashboard_url = ""          # optional: linked from the status as target_url

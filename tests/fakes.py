@@ -117,8 +117,11 @@ class FakeGitHub:
         self.merged = []
         self.readied = []
         self.comments = []
+        self.comment_rows = []
+        self.statuses = {}
         self.closed = []
         self.calls = {"graphql": 0, "rest": 0}
+        self._next_comment_id = 1
 
     def rate_limit(self):
         now = self.clock() if self.clock else 0
@@ -163,6 +166,26 @@ class FakeGitHub:
     def comment(self, number, body):
         self.calls["rest"] += 1
         self.comments.append((number, body))
+        cid = self._next_comment_id
+        self._next_comment_id += 1
+        self.comment_rows.append({"id": cid, "number": number, "body": body})
+
+    def list_comments(self, number):
+        self.calls["rest"] += 1
+        return [{"id": row["id"], "body": row["body"]} for row in self.comment_rows if row["number"] == number]
+
+    def update_comment(self, comment_id, body):
+        self.calls["rest"] += 1
+        for row in self.comment_rows:
+            if row["id"] == comment_id:
+                row["body"] = body
+                return
+        raise ReadFailed(f"NO_SUCH_COMMENT:{comment_id}")
+
+    def set_status(self, sha, state, description, context="svrf", target_url=None):
+        self.calls["rest"] += 1
+        self.statuses.setdefault(sha, []).append({"state": state, "description": description,
+                                                   "context": context, "target_url": target_url})
 
     def close(self, number):
         self.calls["rest"] += 1

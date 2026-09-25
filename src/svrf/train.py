@@ -46,6 +46,7 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Callable
 
+from . import pr_surface
 from .errors import RateLimited, ReadFailed
 from .rules import choose_families, chunk
 
@@ -63,7 +64,8 @@ class Train:
     def __init__(self, git, github, gate, *, receipts: Path, jobs: int = 1, family_size: int = 8,
                  memory=None, clock=time.time, sleep=time.sleep, rate_floor: int = 200, rate_retries: int = 6,
                  poll_seconds: float = 5, poll_tries: int = 36, max_rounds: int = 8, dry_run: bool = False,
-                 comment: bool = True, is_union: Callable[[str], bool] = lambda p: False):
+                 comment: bool = True, is_union: Callable[[str], bool] = lambda p: False,
+                 pr_comments: bool = True, status_checks: bool = True, dashboard_url: str = ""):
         self.git, self.gh, self.gate = git, github, gate
         self.jobs, self.family_size, self.memory = max(1, jobs), max(1, family_size), memory
         self.clock, self.sleep = clock, sleep
@@ -71,11 +73,15 @@ class Train:
         self.poll_seconds, self.poll_tries = poll_seconds, poll_tries
         self.max_rounds, self.dry_run, self.comment = max_rounds, dry_run, comment
         self.is_union = is_union
+        self.pr_comments, self.status_checks, self.dashboard_url = pr_comments, status_checks, dashboard_url
         self.lock = threading.RLock()
         self.rows: dict[int, dict] = {}
         self.stopped = False
         self.red_trees: dict[str, int] = {}
         self._families = 0
+        self._queue_position: dict[int, int] = {}
+        self.surface_history: dict[int, list[str]] = {}
+        self._surface_calls = {"status": 0, "comment_write": 0, "comment_skip": 0}
         stamp = time.strftime("%Y%m%dT%H%M%SZ", time.gmtime(clock()))
         receipts = Path(receipts).expanduser()
         receipts.mkdir(parents=True, exist_ok=True)
@@ -88,13 +94,14 @@ class Train:
                                                               "reserve_gb": memory.reserve_gb}},
             "requested": [], "prs": {}, "pairs": None, "out": {}, "rounds": [], "families": [], "gates": [],
             "merges": [], "holds": [], "retry_later": [], "pending": [], "alerts": [], "rate_waits": [],
-            "api_calls": {}, "stopped": False}
+            "api_calls": {}, "surface": dict(self._surface_calls), "stopped": False}
 
     # ---- receipt
 
     def _save(self) -> None:
         with self.lock:
             self.receipt["api_calls"] = dict(getattr(self.gh, "calls", {}))
+            self.receipt["surface"] = dict(self._surface_calls)
             self.receipt["stopped"] = self.stopped
             tmp = self.path.with_suffix(".json.tmp")
             tmp.write_text(json.dumps(self.receipt, indent=1, sort_keys=True, default=str) + "\n", encoding="utf-8")
@@ -105,11 +112,78 @@ class Train:
             self.receipt[key].append(row)
         self._save()
 
-    def hold(self, number: int, reason: str, paths=(), failing=()) -> None:
-        self._add("holds", {"number": number, "reason": reason, "paths": list(paths), "failing": list(failing)})
+    def hold(self, number: int, reason: str, paths=(), failing=(), *, batch: str | None = None,
+             gate_seconds: float | None = None, conflict_with: list[int] | None = None) -> None:
+        paths, failing = list(paths), list(failing)
+        self._add("holds", {"number": number, "reason": reason, "paths": paths, "failing": failing})
+        self._surface_event(number, "HELD", batch=batch, gate_seconds=gate_seconds, failing=failing,
+                            conflict_with=conflict_with, conflict_paths=paths if conflict_with else None,
+                            reason_line=self._reason_line(reason, paths, failing, conflict_with))
 
     def retry_later(self, number: int | None, reason: str) -> None:
         self._add("retry_later", {"number": number, "reason": reason})
+
+    # ---- the pull-request surface: a commit status and a living comment
+
+    def _reason_line(self, reason: str, paths: list[str], failing: list[str],
+                     conflict_with: list[int] | None) -> str:
+        """A one-line, human reason for a hold: what a developer reads in the status and
+        the comment, not the internal reason code."""
+        if conflict_with:
+            where = f" on {paths[0]}" if paths else ""
+            return "conflicts with " + " ".join(f"#{p}" for p in conflict_with) + where
+        if reason == "CONFLICT" and paths:
+            return "conflicts on " + ", ".join(paths[:3])
+        if failing:
+            return pr_surface.one_line(str(failing[0]))
+        return reason.replace("_", " ").lower()
+
+    def _surface_event(self, number: int, phase: str, **fields) -> None:
+        """Render and post the commit status and/or the living comment for one pull
+        request's phase transition. Best-effort: a failed read never turns a surface
+        update into a train failure, and nothing is posted for a pull request whose head
+        sha is not yet known (never gated, no commit to attach a status to)."""
+        if not (self.status_checks or self.pr_comments):
+            return
+        history = self.surface_history.setdefault(number, [])
+        event = {"number": number, "phase": phase, "position": self._queue_position.get(number),
+                 "history": list(history)}
+        event.update({k: v for k, v in fields.items() if v is not None})
+        if phase not in history:
+            history.append(phase)
+        sha = self.rows.get(number, {}).get("head_sha")
+        if not sha:
+            return
+        if self.status_checks:
+            state, description = pr_surface.status_line(event)
+            try:
+                self.call(self.gh.set_status, sha, state, description, pr_surface.CONTEXT,
+                         self.dashboard_url or None)
+                self._surface_calls["status"] += 1
+            except ReadFailed:
+                pass
+        if self.pr_comments:
+            self._upsert_comment(number, event)
+
+    def _upsert_comment(self, number: int, event: dict) -> None:
+        body = pr_surface.render_comment(event)
+        digest = pr_surface.comment_hash(body)
+        try:
+            comments = self.call(self.gh.list_comments, number)
+        except ReadFailed:
+            return
+        existing = next((c for c in comments if pr_surface.is_surface_comment(c.get("body") or "")), None)
+        if existing is not None and pr_surface.comment_hash(existing.get("body") or "") == digest:
+            self._surface_calls["comment_skip"] += 1
+            return
+        try:
+            if existing is not None:
+                self.call(self.gh.update_comment, existing["id"], body)
+            else:
+                self.call(self.gh.comment, number, body)
+            self._surface_calls["comment_write"] += 1
+        except ReadFailed:
+            pass
 
     def alert(self, alert: str, **detail) -> None:
         self._add("alerts", {"alert": alert, **detail})
@@ -180,10 +254,14 @@ class Train:
                   "commit": steps[-1]["commit"], "tree": steps[-1]["tree"], "steps": steps,
                   "status": "PLANNED", "gate": None}
         self._add("families", family)
+        for n in family["prs"]:
+            self._surface_event(n, "QUEUED", batch=ident, members=family["prs"])
         return family
 
     def gate_family(self, family: dict, base: str) -> dict:
         """One gate of the family's folded tree, admitted by the memory guard."""
+        for n in family["prs"]:
+            self._surface_event(n, "GATING", batch=family["id"], members=family["prs"])
         with self.lock:
             known = self.red_trees.get(family["tree"])
         if known is not None:
@@ -227,7 +305,7 @@ class Train:
         family["status"] = "PREFIX_LANDED_UNGATED" if index else status
         self._save()
 
-    def land_family(self, family: dict, expected: str) -> tuple[bool, list[int]]:
+    def land_family(self, family: dict, expected: str, gate_seconds: float = 0.0) -> tuple[bool, list[int]]:
         """Land the family's pull requests in order, checking every landed tree against the
         planned one. Returns whether the whole family landed and what to requeue."""
         steps = family["steps"]
@@ -294,6 +372,7 @@ class Train:
                               f"planned tree. Receipt: {self.path.name}.")
                 except ReadFailed as failure:
                     self.retry_later(n, f"COMMENT:{failure.reason}")
+            self._surface_event(n, "LANDED", batch=family["id"], gate_seconds=gate_seconds)
             expected = merged
         family["status"] = "LANDED"
         family["landed"] = expected
@@ -333,7 +412,8 @@ class Train:
         each half is replanned on the current base and gated, a green half lands and a red
         half is split again. Returns what to requeue."""
         if len(numbers) == 1:
-            self.hold(numbers[0], "GATE_RED", failing=list(result.get("failing") or [])[:12])
+            self.hold(numbers[0], "GATE_RED", failing=list(result.get("failing") or [])[:12], batch=parent,
+                     gate_seconds=result.get("seconds"))
             return []
         half = len(numbers) // 2
         requeue: list[int] = []
@@ -356,7 +436,7 @@ class Train:
                     self.retry_later(n, gated["read_failure"])
                 continue
             if gated.get("green"):
-                _, rest = self.land_family(family, base)
+                _, rest = self.land_family(family, base, gated.get("seconds", 0.0))
                 requeue.extend(rest)
             else:
                 family["status"] = "BISECTED" if len(family["prs"]) > 1 else "HELD"
@@ -387,6 +467,7 @@ class Train:
         return present
 
     def round(self, queue: list[int]) -> list[int]:
+        self._queue_position = {n: i + 1 for i, n in enumerate(queue)}
         base = self.git.main_sha()
         families = []
         for part in chunk(queue, self.family_size):
@@ -413,7 +494,7 @@ class Train:
                     requeue.extend(family["prs"] + later)
                     break
                 if gated.get("green"):
-                    ok, rest = self.land_family(family, expected)
+                    ok, rest = self.land_family(family, expected, gated.get("seconds", 0.0))
                     if not ok:
                         requeue.extend(rest + later)
                         break
@@ -453,6 +534,12 @@ class Train:
                                           self.is_union)
             self.receipt["out"] = {str(n): v for n, v in out.items()}
             self._save()
+            for n, info in out.items():
+                # left out of this round by a pairwise conflict, not a hold: never recorded
+                # in receipt["holds"] or the daemon's held memory, just shown as held here
+                partners, paths = info.get("with") or [], info.get("paths") or []
+                self._surface_event(n, "HELD", conflict_with=partners, conflict_paths=paths if partners else None,
+                                    reason_line=self._reason_line("CONFLICT", paths, [], partners))
             queue = chosen
             rounds = 0
             while queue and not self.stopped and rounds < self.max_rounds:

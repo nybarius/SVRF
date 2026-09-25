@@ -84,6 +84,22 @@ class RealGitHub:
     def comment(self, number: int, body: str) -> None:
         self._gh(["api", f"repos/{self.repo}/issues/{number}/comments", "-f", f"body={body}"], "rest")
 
+    def list_comments(self, number: int) -> list[dict]:
+        value = json.loads(self._gh(["api", f"repos/{self.repo}/issues/{number}/comments?per_page=100"], "rest"))
+        return [{"id": v["id"], "body": v.get("body") or ""} for v in value]
+
+    def update_comment(self, comment_id: int, body: str) -> None:
+        self._gh(["api", "-X", "PATCH", f"repos/{self.repo}/issues/comments/{comment_id}",
+                  "-f", f"body={body}"], "rest")
+
+    def set_status(self, sha: str, state: str, description: str, context: str = "svrf",
+                   target_url: str | None = None) -> None:
+        args = ["api", f"repos/{self.repo}/statuses/{sha}", "-f", f"state={state}", "-f", f"context={context}",
+                "-f", f"description={description}"]
+        if target_url:
+            args += ["-f", f"target_url={target_url}"]
+        self._gh(args, "rest")
+
     def close(self, number: int) -> None:
         self._gh(["api", "-X", "PATCH", f"repos/{self.repo}/pulls/{number}", "-f", "state=closed"], "rest")
 

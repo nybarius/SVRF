@@ -34,6 +34,14 @@ project intends to follow [Semantic Versioning](https://semver.org/) once it rea
   locally.
 - `docs/demo.cast`: an asciinema v2 recording of `python3 demo/run_demo.py`, linked from
   the README; `demo/record_cast.py` produces it without needing asciinema installed.
+- `src/svrf/pr_surface.py`: SVRF's decision made visible on the pull request itself — a
+  `svrf` commit status (queued/gating/landed/held, with queue position, batch and gate
+  duration) and one living comment, created once and edited in place, with a mini
+  timeline and, on hold, the failing lines and a next step. Controlled by
+  `ui.pr_comments` and `ui.status_checks` (both default on); see `docs/PR_SURFACE.md`.
+  Rate-limit aware (an unchanged comment is never re-edited; every call is counted in the
+  receipt's `surface` field), and every attacker-controlled value it renders (paths, gate
+  output) is Markdown-escaped, never raw HTML.
 
 ### Changed
 

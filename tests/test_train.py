@@ -244,6 +244,121 @@ class TrainRuns(unittest.TestCase):
         self.assertTrue(receipt["retry_later"][0]["reason"].startswith("GATE_FAILED:OSError"))
 
 
+class PrSurface(unittest.TestCase):
+    """The commit status and the living comment on each candidate pull request: queued,
+    gating, landed or held, kept up to date through `self.gh` like every other effect."""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+
+    def test_status_checks_progress_from_queued_through_gating_to_landed(self):
+        repo = FakeRepo([11, 12])
+        gh = FakeGitHub(repo)
+        train(repo, gh, FakeGate(repo), self.tmp, family_size=2).run([11, 12])
+        seq = [row for rows in gh.statuses.values() for row in rows]
+        self.assertIn(("pending", "svrf"), [(s["state"], s["context"]) for s in seq])
+        self.assertIn("success", [s["state"] for s in seq])
+        descriptions = [s["description"] for s in seq]
+        self.assertTrue(any(d.startswith("queued (position") for d in descriptions))
+        self.assertTrue(any(d.startswith("gating batch") for d in descriptions))
+        self.assertTrue(any(d.startswith("landed in batch") for d in descriptions))
+
+    def test_a_living_comment_is_created_once_and_edited_in_place_not_duplicated(self):
+        repo = FakeRepo([21])
+        gh = FakeGitHub(repo)
+        train(repo, gh, FakeGate(repo), self.tmp).run([21])
+        surface = [row for row in gh.comment_rows if row["number"] == 21 and "svrf-pr-surface" in row["body"]]
+        self.assertEqual(len(surface), 1)
+        self.assertIn("landed tree = gated tree", surface[0]["body"])
+
+    def test_a_held_pull_request_shows_its_reason_and_next_step_on_both_surfaces(self):
+        repo = FakeRepo([31, 32, 33, 34])
+        gh, gate = FakeGitHub(repo), FakeGate(repo, bad={32})
+        train(repo, gh, gate, self.tmp, family_size=8).run([31, 32, 33, 34])
+        held = [row for row in gh.comment_rows if row["number"] == 32]
+        self.assertTrue(held)
+        body = held[-1]["body"]
+        self.assertIn("push a fix", body)
+        self.assertIn("FAILED tests/test_lane_32.py::test_it", body)
+        failures = [s for rows in gh.statuses.values() for s in rows if s["state"] == "failure"]
+        self.assertTrue(failures)
+        self.assertTrue(failures[0]["description"].startswith("held:"))
+
+    def test_a_pairwise_conflict_left_out_is_shown_held_without_becoming_a_real_hold(self):
+        repo = FakeRepo([41, 42, 43], conflicts=[((42, 43), ["tools/z.py"])])
+        gh = FakeGitHub(repo)
+        receipt = train(repo, gh, FakeGate(repo), self.tmp).run([41, 42, 43])
+        self.assertEqual(receipt["holds"], [])
+        out = [row for row in gh.comment_rows if row["number"] == 43]
+        self.assertTrue(out)
+        self.assertIn("conflicts with #42 on tools/z.py", out[-1]["body"])
+
+    def test_pr_comments_false_posts_no_comment_but_still_a_status(self):
+        repo = FakeRepo([51])
+        gh = FakeGitHub(repo)
+        train(repo, gh, FakeGate(repo), self.tmp, pr_comments=False).run([51])
+        self.assertFalse(any("svrf-pr-surface" in row["body"] for row in gh.comment_rows))
+        self.assertTrue(gh.statuses)
+
+    def test_status_checks_false_posts_a_comment_but_no_status(self):
+        repo = FakeRepo([52])
+        gh = FakeGitHub(repo)
+        train(repo, gh, FakeGate(repo), self.tmp, status_checks=False).run([52])
+        self.assertEqual(gh.statuses, {})
+        self.assertTrue(any("svrf-pr-surface" in row["body"] for row in gh.comment_rows))
+
+    def test_both_surfaces_off_calls_neither(self):
+        repo = FakeRepo([53])
+        gh = FakeGitHub(repo)
+        train(repo, gh, FakeGate(repo), self.tmp, pr_comments=False, status_checks=False).run([53])
+        self.assertEqual(gh.statuses, {})
+        self.assertFalse(any("svrf-pr-surface" in row["body"] for row in gh.comment_rows))
+
+    def test_an_unchanged_rendered_comment_is_not_rewritten(self):
+        repo = FakeRepo([61])
+        gh = FakeGitHub(repo)
+        t = train(repo, gh, FakeGate(repo), self.tmp)
+        t.rows[61] = {"number": 61, "head_sha": "hhh", "head_ref": "pr-61", "draft": False, "title": ""}
+        t._surface_event(61, "QUEUED", batch="F1", members=[61])
+        t._surface_event(61, "QUEUED", batch="F1", members=[61])
+        self.assertEqual(t._surface_calls["comment_write"], 1)
+        self.assertEqual(t._surface_calls["comment_skip"], 1)
+
+    def test_surface_call_counts_land_in_the_receipt(self):
+        repo = FakeRepo([71])
+        gh = FakeGitHub(repo)
+        receipt = train(repo, gh, FakeGate(repo), self.tmp).run([71])
+        self.assertGreater(receipt["surface"]["status"], 0)
+        self.assertGreater(receipt["surface"]["comment_write"], 0)
+
+    def test_a_configured_dashboard_url_becomes_every_status_target_url(self):
+        repo = FakeRepo([81])
+        gh = FakeGitHub(repo)
+        train(repo, gh, FakeGate(repo), self.tmp, dashboard_url="https://dash.example/run").run([81])
+        seq = [row for rows in gh.statuses.values() for row in rows]
+        self.assertTrue(seq)
+        self.assertTrue(all(row["target_url"] == "https://dash.example/run" for row in seq))
+
+    def test_no_dashboard_url_leaves_target_url_unset(self):
+        repo = FakeRepo([82])
+        gh = FakeGitHub(repo)
+        train(repo, gh, FakeGate(repo), self.tmp).run([82])
+        seq = [row for rows in gh.statuses.values() for row in rows]
+        self.assertTrue(seq)
+        self.assertTrue(all(row["target_url"] is None for row in seq))
+
+    def test_a_conflicting_paths_html_never_reaches_the_comment_unescaped(self):
+        """A conflicting file's path comes from the pull requests themselves (an attacker
+        who can name a file controls it); the comment must render it as literal text."""
+        repo = FakeRepo([91, 92], conflicts=[((91, 92), ["<script>evil.py"])])
+        gh = FakeGitHub(repo)
+        train(repo, gh, FakeGate(repo), self.tmp).run([91, 92])
+        touched = [row for row in gh.comment_rows if row["number"] in (91, 92)]
+        self.assertTrue(touched)
+        for row in touched:
+            self.assertNotIn("<script>", row["body"])
+
+
 class RealGitIdentity(unittest.TestCase):
     """The union step the train gates is the tree a GitHub-style merge commit lands."""
 
