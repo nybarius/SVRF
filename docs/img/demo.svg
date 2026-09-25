@@ -1,0 +1,90 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1179" height="813" viewBox="0 0 1179 813" role="img" aria-label="SVRF demo: a braided train landing eight pull requests">
+<title>SVRF demo: a braided train landing eight pull requests</title>
+<style>text{font-family:ui-monospace,'SF Mono','Cascadia Mono','JetBrains Mono',Menlo,Consolas,monospace;font-size:13px;white-space:pre;fill:#d6d6d0}
+.cmd{fill:#ffffff;font-weight:600}.prompt{fill:#6bb5ff}.head{fill:#6bb5ff;font-weight:600}.ok{fill:#7ddc7d}.held{fill:#f0a57c}.row{fill:#e6e6e0}.title{font-family:system-ui,sans-serif;font-size:12px;fill:#9a9a94}
+.l{opacity:0;animation-duration:16.63s;animation-iteration-count:infinite;animation-timing-function:linear}
+.caret{animation:blink 1s steps(1) infinite}@keyframes blink{50%{opacity:0}}
+@media (prefers-reduced-motion:reduce){.l{animation:none;opacity:1}.caret{animation:none}}
+@keyframes k0{0%,2.41%{opacity:0}2.81%,97.59%{opacity:1}100%{opacity:0}}.n0{animation-name:k0}
+@keyframes k1{0%,2.71%{opacity:0}3.11%,97.59%{opacity:1}100%{opacity:0}}.n1{animation-name:k1}
+@keyframes k2{0%,8.72%{opacity:0}9.12%,97.59%{opacity:1}100%{opacity:0}}.n2{animation-name:k2}
+@keyframes k3{0%,9.68%{opacity:0}10.08%,97.59%{opacity:1}100%{opacity:0}}.n3{animation-name:k3}
+@keyframes k4{0%,10.64%{opacity:0}11.04%,97.59%{opacity:1}100%{opacity:0}}.n4{animation-name:k4}
+@keyframes k5{0%,11.61%{opacity:0}12.01%,97.59%{opacity:1}100%{opacity:0}}.n5{animation-name:k5}
+@keyframes k6{0%,12.57%{opacity:0}12.97%,97.59%{opacity:1}100%{opacity:0}}.n6{animation-name:k6}
+@keyframes k7{0%,13.53%{opacity:0}13.93%,97.59%{opacity:1}100%{opacity:0}}.n7{animation-name:k7}
+@keyframes k8{0%,14.49%{opacity:0}14.89%,97.59%{opacity:1}100%{opacity:0}}.n8{animation-name:k8}
+@keyframes k9{0%,15.45%{opacity:0}15.85%,97.59%{opacity:1}100%{opacity:0}}.n9{animation-name:k9}
+@keyframes k10{0%,16.42%{opacity:0}16.82%,97.59%{opacity:1}100%{opacity:0}}.n10{animation-name:k10}
+@keyframes k11{0%,16.72%{opacity:0}17.12%,97.59%{opacity:1}100%{opacity:0}}.n11{animation-name:k11}
+@keyframes k12{0%,22.73%{opacity:0}23.13%,97.59%{opacity:1}100%{opacity:0}}.n12{animation-name:k12}
+@keyframes k13{0%,23.03%{opacity:0}23.43%,97.59%{opacity:1}100%{opacity:0}}.n13{animation-name:k13}
+@keyframes k14{0%,29.04%{opacity:0}29.44%,97.59%{opacity:1}100%{opacity:0}}.n14{animation-name:k14}
+@keyframes k15{0%,32.35%{opacity:0}32.75%,97.59%{opacity:1}100%{opacity:0}}.n15{animation-name:k15}
+@keyframes k16{0%,35.66%{opacity:0}36.06%,97.59%{opacity:1}100%{opacity:0}}.n16{animation-name:k16}
+@keyframes k17{0%,38.97%{opacity:0}39.37%,97.59%{opacity:1}100%{opacity:0}}.n17{animation-name:k17}
+@keyframes k18{0%,42.27%{opacity:0}42.67%,97.59%{opacity:1}100%{opacity:0}}.n18{animation-name:k18}
+@keyframes k19{0%,45.58%{opacity:0}45.98%,97.59%{opacity:1}100%{opacity:0}}.n19{animation-name:k19}
+@keyframes k20{0%,48.89%{opacity:0}49.29%,97.59%{opacity:1}100%{opacity:0}}.n20{animation-name:k20}
+@keyframes k21{0%,49.19%{opacity:0}49.59%,97.59%{opacity:1}100%{opacity:0}}.n21{animation-name:k21}
+@keyframes k22{0%,55.20%{opacity:0}55.60%,97.59%{opacity:1}100%{opacity:0}}.n22{animation-name:k22}
+@keyframes k23{0%,56.16%{opacity:0}56.56%,97.59%{opacity:1}100%{opacity:0}}.n23{animation-name:k23}
+@keyframes k24{0%,57.13%{opacity:0}57.53%,97.59%{opacity:1}100%{opacity:0}}.n24{animation-name:k24}
+@keyframes k25{0%,58.09%{opacity:0}58.49%,97.59%{opacity:1}100%{opacity:0}}.n25{animation-name:k25}
+@keyframes k26{0%,59.05%{opacity:0}59.45%,97.59%{opacity:1}100%{opacity:0}}.n26{animation-name:k26}
+@keyframes k27{0%,60.01%{opacity:0}60.41%,97.59%{opacity:1}100%{opacity:0}}.n27{animation-name:k27}
+@keyframes k28{0%,60.97%{opacity:0}61.37%,97.59%{opacity:1}100%{opacity:0}}.n28{animation-name:k28}
+@keyframes k29{0%,61.94%{opacity:0}62.34%,97.59%{opacity:1}100%{opacity:0}}.n29{animation-name:k29}
+@keyframes k30{0%,62.90%{opacity:0}63.30%,97.59%{opacity:1}100%{opacity:0}}.n30{animation-name:k30}
+@keyframes k31{0%,63.86%{opacity:0}64.26%,97.59%{opacity:1}100%{opacity:0}}.n31{animation-name:k31}
+@keyframes k32{0%,64.82%{opacity:0}65.22%,97.59%{opacity:1}100%{opacity:0}}.n32{animation-name:k32}
+@keyframes k33{0%,65.78%{opacity:0}66.18%,97.59%{opacity:1}100%{opacity:0}}.n33{animation-name:k33}
+@keyframes k34{0%,66.09%{opacity:0}66.49%,97.59%{opacity:1}100%{opacity:0}}.n34{animation-name:k34}
+@keyframes k35{0%,67.05%{opacity:0}67.45%,97.59%{opacity:1}100%{opacity:0}}.n35{animation-name:k35}
+@keyframes k36{0%,68.01%{opacity:0}68.41%,97.59%{opacity:1}100%{opacity:0}}.n36{animation-name:k36}
+@keyframes k37{0%,68.97%{opacity:0}69.37%,97.59%{opacity:1}100%{opacity:0}}.n37{animation-name:k37}
+@keyframes k38{0%,69.93%{opacity:0}70.33%,97.59%{opacity:1}100%{opacity:0}}.n38{animation-name:k38}</style>
+<rect width="1179" height="813" rx="12" fill="#161615"/>
+<rect width="1179" height="34" rx="12" fill="#232321"/><rect y="22" width="1179" height="12" fill="#232321"/>
+<circle cx="22" cy="17" r="6" fill="#ec6a5e"/><circle cx="42" cy="17" r="6" fill="#f4bf4f"/><circle cx="62" cy="17" r="6" fill="#61c554"/>
+<text class="title" x="590" y="21" text-anchor="middle">SVRF demo: a braided train landing eight pull requests</text>
+<text class="l n0 cmd" x="22" y="64" xml:space="preserve"><tspan class="prompt">$</tspan> python3 demo/run_demo.py</text>
+<text class="l n1 out" x="22" y="83" xml:space="preserve"></text>
+<text class="l n2 head" x="22" y="102" xml:space="preserve">== Six agents open eight pull requests against the toy project ==</text>
+<text class="l n3 out" x="22" y="121" xml:space="preserve">  #1 'Add subtract' (ada): ordinary feature</text>
+<text class="l n4 out" x="22" y="140" xml:space="preserve">  #2 'Add multiply' (bo): ordinary feature (parent of a stacked PR)</text>
+<text class="l n5 out" x="22" y="159" xml:space="preserve">  #3 'Set mode to safe' (cy): changes MODE</text>
+<text class="l n6 out" x="22" y="178" xml:space="preserve">  #4 'Set mode to turbo' (di): changes MODE too: conflicts</text>
+<text class="l n7 out" x="22" y="197" xml:space="preserve">  #5 'Add divide' (ed): its own test fails</text>
+<text class="l n8 out" x="22" y="216" xml:space="preserve">  #6 'Add power' (fay): code committed before its test</text>
+<text class="l n9 out" x="22" y="235" xml:space="preserve">  #7 'Add square' (bo): stacked on #2 (bo/multiply)</text>
+<text class="l n10 out" x="22" y="254" xml:space="preserve">  #8 'Add negate' (ada): ordinary feature</text>
+<text class="l n11 out" x="22" y="273" xml:space="preserve"></text>
+<text class="l n12 head" x="22" y="292" xml:space="preserve">== Configuring the train (the gate is the toy project's own unit tests) ==</text>
+<text class="l n13 out" x="22" y="311" xml:space="preserve"></text>
+<text class="l n14 head" x="22" y="330" xml:space="preserve">== Running the train, one round per tick, until it goes idle ==</text>
+<text class="l n15 ok" x="22" y="349" xml:space="preserve">  tick 1: RAN; merged #1, #2, #3, #8; held #5; relanded #6 -&gt; #9</text>
+<text class="l n16 ok" x="22" y="368" xml:space="preserve">  tick 2: RAN; held #4; repaired #9; retargeted #7</text>
+<text class="l n17 ok" x="22" y="387" xml:space="preserve">  tick 3: RAN; merged #9; repaired #7</text>
+<text class="l n18 ok" x="22" y="406" xml:space="preserve">  tick 4: RAN; repaired #7</text>
+<text class="l n19 ok" x="22" y="425" xml:space="preserve">  tick 5: RAN; merged #7</text>
+<text class="l n20 ok" x="22" y="444" xml:space="preserve">  tick 6: IDLE</text>
+<text class="l n21 out" x="22" y="463" xml:space="preserve"></text>
+<text class="l n22 head" x="22" y="482" xml:space="preserve">== Done: what landed, what's still held ==</text>
+<text class="l n23 out" x="22" y="501" xml:space="preserve">PR  agent  title              what the agent did                         result      detail</text>
+<text class="l n24 out" x="22" y="520" xml:space="preserve">--  -----  -----------------  -----------------------------------------  ----------  ------------------------------------------------------------</text>
+<text class="l n25 row" x="22" y="539" xml:space="preserve">#1  ada    Add subtract       ordinary feature                           merged      round 1</text>
+<text class="l n26 row" x="22" y="558" xml:space="preserve">#2  bo     Add multiply       ordinary feature (parent of a stacked PR)  merged      round 1</text>
+<text class="l n27 row" x="22" y="577" xml:space="preserve">#3  cy     Set mode to safe   changes MODE                               merged      round 1</text>
+<text class="l n28 held" x="22" y="596" xml:space="preserve">#4  di     Set mode to turbo  changes MODE too: conflicts                held        ADMISSION_HELD: merge:CONFLICT:tests/test_settings.py</text>
+<text class="l n29 held" x="22" y="615" xml:space="preserve">#5  ed     Add divide         its own test fails                         held        GATE_RED: FAIL: test_divide (test_divide.Divide.test_divide)</text>
+<text class="l n30 row" x="22" y="634" xml:space="preserve">#6  fay    Add power          code committed before its test             superseded  re-landed in order as #9</text>
+<text class="l n31 row" x="22" y="653" xml:space="preserve">#7  bo     Add square         stacked on #2 (bo/multiply)                merged      round 5</text>
+<text class="l n32 row" x="22" y="672" xml:space="preserve">#8  ada    Add negate         ordinary feature                           merged      round 1</text>
+<text class="l n33 row" x="22" y="691" xml:space="preserve">#9  svrf   Add power          opened by the train for #6                 merged      round 3</text>
+<text class="l n34 out" x="22" y="710" xml:space="preserve"></text>
+<text class="l n35 ok" x="22" y="729" xml:space="preserve">rounds: 6   gates run: 6   merges: 5   landed tree == gated tree for every merge: True   wall: 1.2 s</text>
+<text class="l n36 out" x="22" y="748" xml:space="preserve">repaired by union merge (CHANGELOG.md): #7, #9</text>
+<text class="l n37 out" x="22" y="767" xml:space="preserve">retargeted to main after the parent merged: #7</text>
+<text class="l n38 out" x="22" y="786" xml:space="preserve">left out of a round for a pairwise conflict: #4</text>
+</svg>

@@ -1,0 +1,275 @@
+{
+ "alerts": [],
+ "api_calls": {
+  "graphql": 1,
+  "rest": 0
+ },
+ "config": {
+  "dry_run": true,
+  "family_size": 8,
+  "jobs": 2,
+  "max_rounds": 3,
+  "memory": {
+   "need_gb": 10,
+   "reserve_gb": 8
+  },
+  "rate_floor": 200
+ },
+ "families": [
+  {
+   "base": "1fc5f8b1ab5bfb9016315c9c29ee173d78d181cc",
+   "commit": "ac526ead3e8196f0d487d2f76a0958339436b348",
+   "gate": 0,
+   "id": "F1",
+   "parent": null,
+   "prs": [
+    116,
+    117,
+    118,
+    121,
+    123
+   ],
+   "status": "GATED_DRY",
+   "steps": [
+    {
+     "commit": "98518f62e72e612d241f44c5003775fd27acbdd6",
+     "number": 116,
+     "tree": "07bf239f2409c8c71407ef8cb1c69cde4feac03d"
+    },
+    {
+     "commit": "df205a29db0336758a80e0221094d7ff9e4c0642",
+     "number": 117,
+     "tree": "a334ce07138ea9bf469820e7ba6de327be96dfe0"
+    },
+    {
+     "commit": "986c379abf673ee15e842cc8739310aae7f0aa3e",
+     "number": 118,
+     "tree": "cc22795d253ea77e6a583eb4eeb04f80469d43b4"
+    },
+    {
+     "commit": "dfff80fa59fa36df773a51000a4432ad69cfae0d",
+     "number": 121,
+     "tree": "d97a7c09fd31811eda6803758a24d38965593d1e"
+    },
+    {
+     "commit": "ac526ead3e8196f0d487d2f76a0958339436b348",
+     "number": 123,
+     "tree": "dc1d99f4a807ee86034a880dd818d44baaf1bbc1"
+    }
+   ],
+   "tree": "dc1d99f4a807ee86034a880dd818d44baaf1bbc1"
+  }
+ ],
+ "finished": "20260925T171212Z",
+ "gates": [
+  {
+   "base": "1fc5f8b1ab5bfb9016315c9c29ee173d78d181cc",
+   "commit": "ac526ead3e8196f0d487d2f76a0958339436b348",
+   "failing": [],
+   "family": "F1",
+   "green": true,
+   "prs": [
+    116,
+    117,
+    118,
+    121,
+    123
+   ],
+   "seconds": 25.472,
+   "slot": "slot-0",
+   "started": 1790356307.4837668,
+   "tree": "dc1d99f4a807ee86034a880dd818d44baaf1bbc1"
+  }
+ ],
+ "holds": [],
+ "merges": [],
+ "out": {},
+ "pairs": {
+  "conflicts": [],
+  "read": 10,
+  "unreadable": []
+ },
+ "pending": [],
+ "prs": {
+  "101": {
+   "draft": false,
+   "head_ref": "agent/pr-101",
+   "head_sha": "ebc4448538e930c9cb78716c157bd01dc24874fb",
+   "number": 101,
+   "title": "Change 101"
+  },
+  "103": {
+   "draft": false,
+   "head_ref": "agent/pr-103",
+   "head_sha": "186dc0a3f5f7be30bcb6974e1bb848520bfc37e1",
+   "number": 103,
+   "title": "Change 103"
+  },
+  "104": {
+   "draft": false,
+   "head_ref": "agent/pr-104",
+   "head_sha": "79dee0a1da6f1b431038a83ed5ef0dc473c74a60",
+   "number": 104,
+   "title": "Change 104"
+  },
+  "105": {
+   "draft": false,
+   "head_ref": "agent/pr-105",
+   "head_sha": "55eb8d75de9a25a318dbd953f918dd2b8a537e19",
+   "number": 105,
+   "title": "Change 105"
+  },
+  "106": {
+   "draft": false,
+   "head_ref": "agent/pr-106",
+   "head_sha": "f2b80a59ca460a80205f8686d3177cfa3e76f4c8",
+   "number": 106,
+   "title": "Change 106"
+  },
+  "107": {
+   "draft": false,
+   "head_ref": "agent/pr-107",
+   "head_sha": "f4ad8f564cf3ead2b4b6f77d80b0f169b9df9984",
+   "number": 107,
+   "title": "Change 107"
+  },
+  "108": {
+   "draft": false,
+   "head_ref": "agent/pr-108",
+   "head_sha": "56343913055f0f8061ab64e6066360b06e5e0ec0",
+   "number": 108,
+   "title": "Change 108"
+  },
+  "109": {
+   "draft": false,
+   "head_ref": "agent/pr-109",
+   "head_sha": "ca24391b29d8a8e965b1eadd399283b3e49db353",
+   "number": 109,
+   "title": "Change 109"
+  },
+  "110": {
+   "draft": false,
+   "head_ref": "agent/pr-110",
+   "head_sha": "3a493666b638b006207ec18bbe5bb0b155916c0d",
+   "number": 110,
+   "title": "Change 110"
+  },
+  "116": {
+   "draft": false,
+   "head_ref": "agent/pr-116",
+   "head_sha": "5a1d99c90ee8c432ed655ff536889dfc9363d1e1",
+   "number": 116,
+   "title": "Change 116"
+  },
+  "117": {
+   "draft": false,
+   "head_ref": "agent/pr-117",
+   "head_sha": "c190a02ff14a7ef3ed6bf173654cbe098743d838",
+   "number": 117,
+   "title": "Change 117"
+  },
+  "118": {
+   "draft": false,
+   "head_ref": "agent/pr-118",
+   "head_sha": "f9c848f843d9a43d38e8a5ceefcb0af2045d88f2",
+   "number": 118,
+   "title": "Change 118"
+  },
+  "121": {
+   "draft": false,
+   "head_ref": "agent/pr-121",
+   "head_sha": "dce0176d8a70039320909cb2dbb1bc9bce10e181",
+   "number": 121,
+   "title": "Change 121"
+  },
+  "123": {
+   "draft": false,
+   "head_ref": "agent/pr-123",
+   "head_sha": "2c476961eb7c8852ab5280d5a6e9dc6596ec82e1",
+   "number": 123,
+   "title": "Change 123"
+  }
+ },
+ "rate_waits": [],
+ "requested": [
+  101,
+  103,
+  104,
+  105,
+  106,
+  107,
+  108,
+  109,
+  110,
+  116,
+  117,
+  118,
+  121,
+  123
+ ],
+ "retry_later": [
+  {
+   "number": 101,
+   "reason": "ALREADY_MERGED"
+  },
+  {
+   "number": 103,
+   "reason": "ALREADY_MERGED"
+  },
+  {
+   "number": 104,
+   "reason": "ALREADY_MERGED"
+  },
+  {
+   "number": 105,
+   "reason": "ALREADY_MERGED"
+  },
+  {
+   "number": 106,
+   "reason": "ALREADY_MERGED"
+  },
+  {
+   "number": 107,
+   "reason": "ALREADY_MERGED"
+  },
+  {
+   "number": 108,
+   "reason": "ALREADY_MERGED"
+  },
+  {
+   "number": 109,
+   "reason": "ALREADY_MERGED"
+  },
+  {
+   "number": 110,
+   "reason": "ALREADY_MERGED"
+  }
+ ],
+ "rounds": [
+  {
+   "base": "1fc5f8b1ab5bfb9016315c9c29ee173d78d181cc",
+   "families": [
+    "F1"
+   ],
+   "queue": [
+    101,
+    103,
+    104,
+    105,
+    106,
+    107,
+    108,
+    109,
+    110,
+    116,
+    117,
+    118,
+    121,
+    123
+   ]
+  }
+ ],
+ "schema_version": "svrf.receipt/1",
+ "started": "20260925T171144Z",
+ "stopped": false
+}

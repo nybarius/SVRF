@@ -1,0 +1,229 @@
+{
+ "alerts": [],
+ "api_calls": {
+  "graphql": 1,
+  "rest": 25
+ },
+ "config": {
+  "dry_run": false,
+  "family_size": 8,
+  "jobs": 2,
+  "max_rounds": 3,
+  "memory": {
+   "need_gb": 10,
+   "reserve_gb": 8
+  },
+  "rate_floor": 200
+ },
+ "families": [
+  {
+   "base": "eb74122af778fc1fb1aacc6565fa9fdb3fc90ab8",
+   "commit": "378496ccd79139629e0b3a2049bfba682c74858f",
+   "gate": 0,
+   "id": "F1",
+   "landed": "099116c664cf51681f442935669526efa08707cd",
+   "parent": null,
+   "prs": [
+    158,
+    159,
+    160,
+    161,
+    162
+   ],
+   "status": "LANDED",
+   "steps": [
+    {
+     "commit": "3e1a84106908644e3ebe97d8247ccbf350591c93",
+     "number": 158,
+     "tree": "618697335207145fa2aa0f2afd5b1c74a419b7a0"
+    },
+    {
+     "commit": "37cdc08792742700630f9214791d144e33b74c08",
+     "number": 159,
+     "tree": "1e1cf5d86d8e9e76b8dd3b19727ad443148d4e30"
+    },
+    {
+     "commit": "6feeeae62453ee9c52fdd187a86824085e1c4903",
+     "number": 160,
+     "tree": "5253b40f8d7284b235aee888f865d032eb234b09"
+    },
+    {
+     "commit": "da8427c7d976bb3c5b2e641680b5a14ca2c3832f",
+     "number": 161,
+     "tree": "755ac7946655c5d9af4fbbdf39a57970d2420bee"
+    },
+    {
+     "commit": "378496ccd79139629e0b3a2049bfba682c74858f",
+     "number": 162,
+     "tree": "d241d3a4c1ac30c535a0d2ae1efbd4cd79bf2dff"
+    }
+   ],
+   "tree": "d241d3a4c1ac30c535a0d2ae1efbd4cd79bf2dff"
+  }
+ ],
+ "finished": "20260925T212411Z",
+ "gates": [
+  {
+   "base": "eb74122af778fc1fb1aacc6565fa9fdb3fc90ab8",
+   "commit": "378496ccd79139629e0b3a2049bfba682c74858f",
+   "failing": [],
+   "family": "F1",
+   "green": true,
+   "prs": [
+    158,
+    159,
+    160,
+    161,
+    162
+   ],
+   "seconds": 84.596,
+   "slot": "slot-0",
+   "started": 1790371297.1114604,
+   "tree": "d241d3a4c1ac30c535a0d2ae1efbd4cd79bf2dff"
+  }
+ ],
+ "holds": [],
+ "merges": [
+  {
+   "at": 1790371395.1797132,
+   "family": "F1",
+   "gated_tree": "618697335207145fa2aa0f2afd5b1c74a419b7a0",
+   "head": "93a92c4f16784693c2a65819877b10589bc6f27f",
+   "identity": true,
+   "merge": "e82d7a1c47afa6039be2968b2d9d15fc7ec7651f",
+   "number": 158,
+   "observed_tree": "618697335207145fa2aa0f2afd5b1c74a419b7a0",
+   "parents": [
+    "eb74122af778fc1fb1aacc6565fa9fdb3fc90ab8",
+    "93a92c4f16784693c2a65819877b10589bc6f27f"
+   ]
+  },
+  {
+   "at": 1790371409.1588306,
+   "family": "F1",
+   "gated_tree": "1e1cf5d86d8e9e76b8dd3b19727ad443148d4e30",
+   "head": "6b16906bc158b7def7f65b715d6c003240b84b4f",
+   "identity": true,
+   "merge": "cf486ce07e0fe49d36c40e7280b026281a0a17d6",
+   "number": 159,
+   "observed_tree": "1e1cf5d86d8e9e76b8dd3b19727ad443148d4e30",
+   "parents": [
+    "e82d7a1c47afa6039be2968b2d9d15fc7ec7651f",
+    "6b16906bc158b7def7f65b715d6c003240b84b4f"
+   ]
+  },
+  {
+   "at": 1790371423.2068586,
+   "family": "F1",
+   "gated_tree": "5253b40f8d7284b235aee888f865d032eb234b09",
+   "head": "8383021858396d4ed4015040b2b6d27c09bb0809",
+   "identity": true,
+   "merge": "6c0483f71f13d585c19a3c93880af04d1868a0ec",
+   "number": 160,
+   "observed_tree": "5253b40f8d7284b235aee888f865d032eb234b09",
+   "parents": [
+    "cf486ce07e0fe49d36c40e7280b026281a0a17d6",
+    "8383021858396d4ed4015040b2b6d27c09bb0809"
+   ]
+  },
+  {
+   "at": 1790371437.1318808,
+   "family": "F1",
+   "gated_tree": "755ac7946655c5d9af4fbbdf39a57970d2420bee",
+   "head": "ba8beffcc2a3a5c0a221863a6cdebc13a963cf3f",
+   "identity": true,
+   "merge": "9201de8449a3074345f8ce19a678f0c0b72cd428",
+   "number": 161,
+   "observed_tree": "755ac7946655c5d9af4fbbdf39a57970d2420bee",
+   "parents": [
+    "6c0483f71f13d585c19a3c93880af04d1868a0ec",
+    "ba8beffcc2a3a5c0a221863a6cdebc13a963cf3f"
+   ]
+  },
+  {
+   "at": 1790371450.9401877,
+   "family": "F1",
+   "gated_tree": "d241d3a4c1ac30c535a0d2ae1efbd4cd79bf2dff",
+   "head": "9f766eed2ab9e92421891e36ecc76dce7f253882",
+   "identity": true,
+   "merge": "099116c664cf51681f442935669526efa08707cd",
+   "number": 162,
+   "observed_tree": "d241d3a4c1ac30c535a0d2ae1efbd4cd79bf2dff",
+   "parents": [
+    "9201de8449a3074345f8ce19a678f0c0b72cd428",
+    "9f766eed2ab9e92421891e36ecc76dce7f253882"
+   ]
+  }
+ ],
+ "out": {},
+ "pairs": {
+  "conflicts": [],
+  "read": 10,
+  "unreadable": []
+ },
+ "pending": [],
+ "prs": {
+  "158": {
+   "draft": false,
+   "head_ref": "agent/pr-158",
+   "head_sha": "63007e58a8baf26ab0780c65d51aef2e2a3f6b4a",
+   "number": 158,
+   "title": "Change 158"
+  },
+  "159": {
+   "draft": false,
+   "head_ref": "agent/pr-159",
+   "head_sha": "bcbbbdfef8a438af76c67b18ded3a17024b5fe99",
+   "number": 159,
+   "title": "Change 159"
+  },
+  "160": {
+   "draft": false,
+   "head_ref": "agent/pr-160",
+   "head_sha": "6e97feeda3e5709db633aa82e308d2fdd447cdaf",
+   "number": 160,
+   "title": "Change 160"
+  },
+  "161": {
+   "draft": false,
+   "head_ref": "agent/pr-161",
+   "head_sha": "86ec0ddecc20c2567167962ac8814c6a79b646b4",
+   "number": 161,
+   "title": "Change 161"
+  },
+  "162": {
+   "draft": false,
+   "head_ref": "agent/pr-162",
+   "head_sha": "f80a2f79f006da16c9e8ace1a37549c28cbf8f04",
+   "number": 162,
+   "title": "Change 162"
+  }
+ },
+ "rate_waits": [],
+ "requested": [
+  158,
+  159,
+  160,
+  161,
+  162
+ ],
+ "retry_later": [],
+ "rounds": [
+  {
+   "base": "eb74122af778fc1fb1aacc6565fa9fdb3fc90ab8",
+   "families": [
+    "F1"
+   ],
+   "queue": [
+    158,
+    159,
+    160,
+    161,
+    162
+   ]
+  }
+ ],
+ "schema_version": "svrf.receipt/1",
+ "started": "20260925T212134Z",
+ "stopped": false
+}

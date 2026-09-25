@@ -1,0 +1,169 @@
+{
+ "alerts": [],
+ "api_calls": {
+  "graphql": 1,
+  "rest": 15
+ },
+ "config": {
+  "dry_run": false,
+  "family_size": 8,
+  "jobs": 2,
+  "max_rounds": 3,
+  "memory": {
+   "need_gb": 10,
+   "reserve_gb": 8
+  },
+  "rate_floor": 200
+ },
+ "families": [
+  {
+   "base": "3b67d719fdc578338f77ad0847b4f779ad191f19",
+   "commit": "5090fc25b6421a60c0f8e5706066a60fb3250be5",
+   "gate": 0,
+   "id": "F1",
+   "landed": "925779a67c697a1d0fcc992486171add3154e87c",
+   "parent": null,
+   "prs": [
+    145,
+    146,
+    147
+   ],
+   "status": "LANDED",
+   "steps": [
+    {
+     "commit": "a0982a60d2706192626ead4ad1e7185dbcfdf4e2",
+     "number": 145,
+     "tree": "991532dd9d92155746b5bc9a3a8e690628072a50"
+    },
+    {
+     "commit": "63201446b8b412dbd395a8a49b1f0f80c94e9599",
+     "number": 146,
+     "tree": "6cc40b1fa8fc06492ac4c2ea658982fc44ba433b"
+    },
+    {
+     "commit": "5090fc25b6421a60c0f8e5706066a60fb3250be5",
+     "number": 147,
+     "tree": "37c9a63912eda09ec5c0413f4b8aa51b87f0dad5"
+    }
+   ],
+   "tree": "37c9a63912eda09ec5c0413f4b8aa51b87f0dad5"
+  }
+ ],
+ "finished": "20260925T202345Z",
+ "gates": [
+  {
+   "base": "3b67d719fdc578338f77ad0847b4f779ad191f19",
+   "commit": "5090fc25b6421a60c0f8e5706066a60fb3250be5",
+   "failing": [],
+   "family": "F1",
+   "green": true,
+   "prs": [
+    145,
+    146,
+    147
+   ],
+   "seconds": 18.855,
+   "slot": "slot-0",
+   "started": 1790367764.1305058,
+   "tree": "37c9a63912eda09ec5c0413f4b8aa51b87f0dad5"
+  }
+ ],
+ "holds": [],
+ "merges": [
+  {
+   "at": 1790367796.194539,
+   "family": "F1",
+   "gated_tree": "991532dd9d92155746b5bc9a3a8e690628072a50",
+   "head": "fbbd6ab7ae390f48dea856b3d2c567889570a97f",
+   "identity": true,
+   "merge": "83b6df603ca5a0301be45de6530b1c80766b86a3",
+   "number": 145,
+   "observed_tree": "991532dd9d92155746b5bc9a3a8e690628072a50",
+   "parents": [
+    "3b67d719fdc578338f77ad0847b4f779ad191f19",
+    "fbbd6ab7ae390f48dea856b3d2c567889570a97f"
+   ]
+  },
+  {
+   "at": 1790367810.3232548,
+   "family": "F1",
+   "gated_tree": "6cc40b1fa8fc06492ac4c2ea658982fc44ba433b",
+   "head": "c94033e635bddfa9693e0181135371d4daa76a37",
+   "identity": true,
+   "merge": "113c772bedbbe84b7ad40b154e8bfaca6e4b5d27",
+   "number": 146,
+   "observed_tree": "6cc40b1fa8fc06492ac4c2ea658982fc44ba433b",
+   "parents": [
+    "83b6df603ca5a0301be45de6530b1c80766b86a3",
+    "c94033e635bddfa9693e0181135371d4daa76a37"
+   ]
+  },
+  {
+   "at": 1790367824.5603445,
+   "family": "F1",
+   "gated_tree": "37c9a63912eda09ec5c0413f4b8aa51b87f0dad5",
+   "head": "8ccfc10b08911136bb74d7c8e968fb8e4707b107",
+   "identity": true,
+   "merge": "925779a67c697a1d0fcc992486171add3154e87c",
+   "number": 147,
+   "observed_tree": "37c9a63912eda09ec5c0413f4b8aa51b87f0dad5",
+   "parents": [
+    "113c772bedbbe84b7ad40b154e8bfaca6e4b5d27",
+    "8ccfc10b08911136bb74d7c8e968fb8e4707b107"
+   ]
+  }
+ ],
+ "out": {},
+ "pairs": {
+  "conflicts": [],
+  "read": 3,
+  "unreadable": []
+ },
+ "pending": [],
+ "prs": {
+  "145": {
+   "draft": false,
+   "head_ref": "agent/pr-145",
+   "head_sha": "0dd8427782f141d00bafb33c766118e3911737e8",
+   "number": 145,
+   "title": "Change 145"
+  },
+  "146": {
+   "draft": false,
+   "head_ref": "agent/pr-146",
+   "head_sha": "bfa53bebc4898f6a6e829d00104c08a222db6969",
+   "number": 146,
+   "title": "Change 146"
+  },
+  "147": {
+   "draft": false,
+   "head_ref": "agent/pr-147",
+   "head_sha": "e2d22b3502945047ea35896bba407bf44cd62c90",
+   "number": 147,
+   "title": "Change 147"
+  }
+ },
+ "rate_waits": [],
+ "requested": [
+  145,
+  146,
+  147
+ ],
+ "retry_later": [],
+ "rounds": [
+  {
+   "base": "3b67d719fdc578338f77ad0847b4f779ad191f19",
+   "families": [
+    "F1"
+   ],
+   "queue": [
+    145,
+    146,
+    147
+   ]
+  }
+ ],
+ "schema_version": "svrf.receipt/1",
+ "started": "20260925T202241Z",
+ "stopped": false
+}
