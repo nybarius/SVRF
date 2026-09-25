@@ -684,8 +684,8 @@ theorem foldl_pick_mem (c : V → V → Bool) :
       · exact Or.inl h
       · exact Or.inr (List.mem_cons_of_mem _ h)
 
-/-- The code's pivot is a candidate or an excluded node whenever there is one. -/
 omit [DecidableEq V] in
+/-- The code's pivot is a candidate or an excluded node whenever there is one. -/
 theorem codePivot_mem (compat : V → V → Bool) (d : V) (P X : List V)
     (h : (P.isEmpty && X.isEmpty) = false) : codePivot compat d P X ∈ P ∨ codePivot compat d P X ∈ X := by
   have hne : ∃ y, (P ++ X).headD d = y ∧ y ∈ P ++ X := by
