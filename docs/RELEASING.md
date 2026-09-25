@@ -83,3 +83,5 @@ docker push ghcr.io/nybarius/svrf:latest
 python -m pip install twine
 twine upload dist/*
 ```
+
+> PyPI publishing is off by default: set the repository variable `PUBLISH_PYPI=true` after adding a trusted publisher on pypi.org. Until then, install from GitHub (`pipx install git+https://github.com/nybarius/SVRF`) or use the container image.

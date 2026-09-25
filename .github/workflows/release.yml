@@ -73,7 +73,8 @@ jobs:
   publish-pypi:
     name: publish (PyPI trusted publishing)
     needs: wheel
-    if: startsWith(github.ref, 'refs/tags/v')
+    # Off unless the repository variable PUBLISH_PYPI is 'true' (set it once a PyPI trusted publisher exists).
+    if: startsWith(github.ref, 'refs/tags/v') && vars.PUBLISH_PYPI == 'true'
     runs-on: ubuntu-latest
     environment:
       name: pypi

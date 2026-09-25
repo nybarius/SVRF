@@ -68,7 +68,7 @@ Or install the CLI, to run it on your own machine, in a container or on a self-h
 runner (Python 3.11+, git and the `gh` CLI):
 
 ```sh
-pipx install svrf   # or: pip install svrf
+pipx install git+https://github.com/nybarius/SVRF   # or: pip install git+https://github.com/nybarius/SVRF
 ```
 
 Either way the token (`GH_TOKEN` or `secrets.SVRF_TOKEN`) needs permission to push
