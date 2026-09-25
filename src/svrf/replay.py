@@ -15,8 +15,17 @@ every write happens in a throwaway local origin this module owns.
 listed pull request's own reconstructed base (its merge commit's first parent) must be
 identical -- true for the sole member of a round, refused otherwise, since the train
 model has one current base per round. To replay several pull requests as the family
-they actually landed together, pass their shared original round base explicitly (a
-receipt's `family["base"]`, or the earliest member's own reconstructed base).
+they actually landed together, pass their shared original round base explicitly:
+prefer the first (lowest-numbered, earliest-landed) member's own reconstructed base
+over a receipt's `family["base"]` -- for every family after the first in a round that
+speculatively stacked families on each other's unlanded folds, that field can be a
+"train preview" commit that was never pushed anywhere durable and will not be present
+in any real clone.
+
+A pull request that was pushed to more than once before it merged is reconstructed only
+at the state its own merge commit carries, not any earlier, since-superseded push: a
+head repaired or relanded along the way and then merged cleanly is read here only as
+"merged cleanly", the same way a live snapshot only ever sees the current push.
 """
 
 from __future__ import annotations
