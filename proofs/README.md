@@ -69,12 +69,15 @@ states it and the function or method that enforces it in the running train.
 | `speculation-void` | `stackStatus_void_iff` | `Train.round` |
 | `bisect-holds-exactly-red` | `settle_outcome` | `Train.settle_red` |
 | `bisect-gate-bound` | `bisection_gates_le` | `Train.settle_red` |
+| `maximal-family` | `bk_maximal` | `families` |
+| `left-out-names-partner` | `chosen_family_maximal` | `choose_families` |
+| `stacked-retarget` | `retarget_after_parent` | `Daemon.stacked` |
 
 `tests/test_proof_map.py` checks this table against `svrf.rules.RULES` directly: every
 rule name and theorem name in the code must also appear in this file, every named theorem
 or definition must exist in `proofs/BraidedTrain/*.lean`, and every named check must be a
-real callable. If you add or rename a rule, update the table above and the code together;
-the test fails otherwise.
+real callable (a method of `Train` or `Daemon`, or a function in `svrf.rules`). If you add
+or rename a rule, update the table above and the code together; the test fails otherwise.
 
 ## Files
 
@@ -87,6 +90,8 @@ the test fails otherwise.
 | `BraidedTrain/Union.lean` | The line-level union merge (`unionLines`, the model of `union_lines`): exact associativity (`unionLines_assoc`), commutation up to line order (`unionLines_comm`, sharp by `union_order_visible`), and at the path level `change_comm` / `family_perm` under `UnionOnlyOverlap`, the union repair's hypothesis. |
 | `BraidedTrain/Stacking.lean` | Speculative stacking: families gated on the fold of every family before them land gated trees at every family boundary (`stack_lands_gated`); a stacked verdict does not carry past a red family (`stack_fold_through`, `stacked_verdict_does_not_carry`); the round's bookkeeping voids exactly the families above the first red one (`stackStatus_void_iff`, `stackStatus_landed_iff`, `stackStatus_bisected_iff`). |
 | `BraidedTrain/Bisection.lean` | Bisection of a red family (`settle`, the model of `Train.settle_red`) terminates (well-founded on family length), holds exactly the bad pull requests and lands the rest under a monotone gate (`settle_outcome`), and costs at most `2·r·⌈log₂ n⌉ + 1` gates including the family's own (`settle_gates_le`, `bisection_gates_le`). |
+| `BraidedTrain/Families.lean` | The Bron–Kerbosch recursion of `families`, with arbitrary pivot and iteration order: every family it reports is a maximal compatible set (`bk_maximal`), so the family `choose_families` keeps holds no conflicting pair and every pull request left out conflicts with a kept one (`chosen_family_maximal`). |
+| `BraidedTrain/Retarget.lean` | A retarget changes only a pull request's base ref (`retarget_head`, `retarget_headTree`, `retarget_fold`); after the parent landed by a replayed landing, the base branch holds the parent's tree and the stacked pull request lands exactly what it would have landed on its parent (`retarget_lands_same`, `retarget_after_parent`). |
 | `BraidedTrain/Examples.lean` | Concrete instances that exercise the general lemmas against small, fully-written-out cases. |
 | `CheckAxioms.lean` | Prints the axioms each main theorem depends on; `make proofs` fails if any line mentions `sorryAx` or `Classical.choice`. |
 
@@ -108,19 +113,31 @@ cd proofs && lake env lean CheckAxioms.lean
 This prints, for every theorem an invariant in the table above depends on, the axioms Lean
 used to prove it. `make proofs` runs this and fails the build if any printed line contains
 `sorryAx` (an unfinished proof) or `Classical.choice` (a nonconstructive step none of these
-proofs need — they are finite-list inductions throughout). `tests/test_proof_map.py`
+proofs need — they are finite-list inductions and well-founded recursion on list length
+throughout). `tests/test_proof_map.py`
 separately checks the source text of `proofs/BraidedTrain/*.lean` for `sorry` and
 `axiom` declarations, so neither can slip back in unnoticed.
 
-## TODO
+## Model boundary
 
-Further modelling work this directory does not yet cover:
+What the proofs above do not cover, and what stands in for it in the running train:
 
-- **Maximality of the chosen family.** `svrf.rules.choose_families` picks the largest
-  pairwise-compatible set the enumeration finds; state and prove that no strictly larger
-  pairwise-compatible set of the same candidate pull requests exists (maximum, not just
-  maximal, independent set of the conflict graph).
-- **Stacked retarget leaves the head tree unchanged.** When a stacked pull request's base is
-  moved to its parent's former base after the parent merges (`retarget`), show the retarget
-  itself does not change the tree the head branch would land — only which branch it is read
-  against.
+- **Git's merge.** That `git merge-tree` of a prepared branch is the model's `step`
+  (`fold`, `unionStep`, `change`) is not a theorem. Every landing reads the tree the base
+  branch actually holds and compares it with the gated tree (`checkLanding`), and a
+  mismatch stops the train. Git's hunk-level merge of a non-union file edited on both
+  sides is read as a conflict by the path-level model.
+- **GitHub's API.** That a retarget changes no commit, that a merge pinned to a sha merges
+  that sha, and that mergeability reads are current are GitHub's behaviour. The train
+  re-reads the head sha before every merge (`HEAD_MOVED`), pins the merge to the prepared
+  sha, and reads the landed tree after it; a failed or rate-limited read is retried, never
+  counted as a verdict.
+- **The gate command.** The proofs treat a gate as a predicate on trees; the bisection
+  results assume it is monotone (a set is green exactly when it holds no bad pull
+  request). A flaky or order-dependent gate breaks that hypothesis, not the train's
+  landing check.
+- **Maximum family.** `bk_maximal` shows every family the enumeration reports is maximal.
+  That the enumeration reports every maximal family, so that the first of the size-sorted
+  list is a largest compatible set, is not proved here.
+- **Concurrency and timing.** Parallel gates, rate-limit waits and the receipt file are
+  engineering around the model, not part of it.
