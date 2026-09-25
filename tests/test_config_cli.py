@@ -112,6 +112,56 @@ class CommandLine(unittest.TestCase):
             value = json.loads(out)
             self.assertEqual(value["held"], [{"number": 7, "reason": "GATE_RED", "head": "abc", "failing": ["FAIL x"]}])
 
+    def test_the_replay_subcommand_reports_admission_and_families(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp = Path(tmp)
+            origin = tmp / "origin.git"
+            subprocess.run(["git", "init", "-q", "--bare", "-b", "main", str(origin)], check=True)
+            seed = tmp / "seed"
+            seed.mkdir()
+            env = {**os.environ, "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t",
+                  "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t"}
+
+            def git(*args):
+                subprocess.run(["git", "-C", str(seed), *args], check=True, capture_output=True, text=True, env=env)
+
+            def out(*args):
+                return subprocess.run(["git", "-C", str(seed), *args], check=True, capture_output=True, text=True,
+                                      env=env).stdout.strip()
+
+            git("init", "-q", "-b", "main")
+            (seed / "a.txt").write_text("0\n")
+            git("add", "-A")
+            git("commit", "-qm", "base")
+            git("remote", "add", "origin", str(origin))
+            git("push", "-q", "origin", "main")
+            git("checkout", "-q", "-b", "feature")
+            (seed / "b.txt").write_text("1\n")
+            git("add", "-A")
+            git("commit", "-qm", "feat: b")
+            git("checkout", "-q", "main")
+            git("merge", "-q", "--no-ff", "--no-edit", "feature")
+            merged = out("rev-parse", "HEAD")
+            git("push", "-q", "origin", "main")
+
+            clone = tmp / "clone"
+            subprocess.run(["git", "clone", "-q", str(origin), str(clone)], check=True, capture_output=True)
+            path = tmp / "svrf.toml"
+            path.write_text(f'repo = "a/b"\nclone = "{clone}"\nstate_dir = "{tmp / "state"}"\n'
+                            '[gate]\ncommands = ["true"]\n')
+
+            class FakeHub:
+                def merge_commit(self, number):
+                    return merged if number == 55 else None
+
+            out_json = io.StringIO()
+            with redirect_stdout(out_json):
+                code = cli.main(["--config", str(path), "replay", "--merged", "55"], github=FakeHub())
+            self.assertEqual(code, 0)
+            report = json.loads(out_json.getvalue())
+            self.assertEqual(report["admission"]["55"]["decision"], "ADMIT")
+            self.assertEqual([f["prs"] for f in report["families"]], [[55]])
+
     def test_a_bad_config_exits_2(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "svrf.toml"

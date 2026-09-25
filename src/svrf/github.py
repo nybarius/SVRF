@@ -54,6 +54,12 @@ class RealGitHub:
         return {"number": number, "head_sha": value["head"]["sha"], "head_ref": value["head"]["ref"],
                 "mergeable": value.get("mergeable"), "state": value.get("state"), "draft": value.get("draft")}
 
+    def merge_commit(self, number: int) -> str | None:
+        """The commit GitHub made when this pull request was merged, or None (never
+        merged, or merged some other way that recorded no such commit)."""
+        value = json.loads(self._gh(["api", f"repos/{self.repo}/pulls/{number}"], "rest"))
+        return value.get("merge_commit_sha") if value.get("merged") else None
+
     def pulls_with_head(self, branch: str) -> list[dict]:
         """Every pull request (any state) whose head is `branch`: a stacked PR's parent."""
         owner = self.repo.split("/")[0]
