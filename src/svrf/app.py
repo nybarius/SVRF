@@ -58,5 +58,7 @@ def build(config: Config, *, github=None, dry_run: bool = False, clock=None, sle
                   history_verdict=lambda b, h: history.verdict(git, b, h, kind, prefixes),
                   train_options={"jobs": config.train.jobs, "family_size": config.train.family_size,
                                  "memory": memory, "rate_floor": config.train.rate_floor,
-                                 "max_rounds": config.train.max_rounds, "comment": config.train.comment},
+                                 "max_rounds": config.train.max_rounds, "comment": config.train.comment,
+                                 "pr_comments": config.ui.pr_comments, "status_checks": config.ui.status_checks,
+                                 "dashboard_url": config.ui.dashboard_url},
                   **extra)

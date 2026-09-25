@@ -27,6 +27,18 @@ class Config(unittest.TestCase):
         self.assertEqual((config.train.family_size, config.train.jobs), (8, 2))
         self.assertTrue(config.repair)
         self.assertFalse(config.union_paths("package-lock.json"))
+        self.assertEqual((config.ui.pr_comments, config.ui.status_checks, config.ui.dashboard_url),
+                         (True, True, ""))
+
+    def test_the_ui_section_can_turn_either_surface_off_and_set_a_dashboard_url(self):
+        config = from_dict({**MINIMAL, "ui": {"pr_comments": False, "status_checks": False,
+                                              "dashboard_url": "https://dash.example/x"}})
+        self.assertEqual((config.ui.pr_comments, config.ui.status_checks, config.ui.dashboard_url),
+                         (False, False, "https://dash.example/x"))
+
+    def test_an_unknown_ui_key_is_refused(self):
+        with self.assertRaises(ConfigError):
+            from_dict({**MINIMAL, "ui": {"comments": True}})
 
     def test_unknown_keys_are_refused(self):
         for bad in ({**MINIMAL, "familysize": 3}, {**MINIMAL, "train": {"family": 3}},

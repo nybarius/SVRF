@@ -21,8 +21,11 @@ class LocalHub:
         self.base, self.repo = base, repo
         self.prs: dict[int, dict] = {}
         self.comments: list[tuple[int, str]] = []
+        self.comment_rows: list[dict] = []
+        self.statuses: dict[str, list[dict]] = {}
         self.calls = {"graphql": 0, "rest": 0}
         self.next_number = 1
+        self._next_comment_id = 1
         self.env = {**os.environ, "GIT_AUTHOR_NAME": "hub", "GIT_AUTHOR_EMAIL": "hub@localhost",
                     "GIT_COMMITTER_NAME": "hub", "GIT_COMMITTER_EMAIL": "hub@localhost"}
 
@@ -131,6 +134,27 @@ class LocalHub:
     def comment(self, number: int, body: str) -> None:
         self.calls["rest"] += 1
         self.comments.append((number, body))
+        cid = self._next_comment_id
+        self._next_comment_id += 1
+        self.comment_rows.append({"id": cid, "number": number, "body": body})
+
+    def list_comments(self, number: int) -> list[dict]:
+        self.calls["rest"] += 1
+        return [{"id": row["id"], "body": row["body"]} for row in self.comment_rows if row["number"] == number]
+
+    def update_comment(self, comment_id: int, body: str) -> None:
+        self.calls["rest"] += 1
+        for row in self.comment_rows:
+            if row["id"] == comment_id:
+                row["body"] = body
+                return
+        raise ReadFailed(f"NO_SUCH_COMMENT:{comment_id}")
+
+    def set_status(self, sha: str, state: str, description: str, context: str = "svrf",
+                   target_url: str | None = None) -> None:
+        self.calls["rest"] += 1
+        self.statuses.setdefault(sha, []).append({"state": state, "description": description,
+                                                   "context": context, "target_url": target_url})
 
     def close(self, number: int) -> None:
         self.calls["rest"] += 1

@@ -43,6 +43,13 @@ class TrainConfig:
 
 
 @dataclass
+class UiConfig:
+    pr_comments: bool = True
+    status_checks: bool = True
+    dashboard_url: str = ""
+
+
+@dataclass
 class HistoryConfig:
     order: str = "off"            # "off" or "tests-first"
     reland: bool = True
@@ -67,6 +74,7 @@ class Config:
     gate: GateConfig = field(default_factory=GateConfig)
     train: TrainConfig = field(default_factory=TrainConfig)
     history: HistoryConfig = field(default_factory=HistoryConfig)
+    ui: UiConfig = field(default_factory=UiConfig)
 
     # ---- derived paths
     @property
@@ -90,7 +98,7 @@ class Config:
         return PathSet(self.union_merge)
 
 
-_SECTIONS = {"gate": GateConfig, "train": TrainConfig, "history": HistoryConfig}
+_SECTIONS = {"gate": GateConfig, "train": TrainConfig, "history": HistoryConfig, "ui": UiConfig}
 _TOP = {"repo", "base", "clone", "state_dir", "remote", "git_name", "git_email", "hold_label", "admission_command"}
 
 
