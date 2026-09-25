@@ -1,0 +1,445 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>SVRF live train</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%232a78d6'/%3E%3Cpath d='M10 26 V21 Q10 17 16 14 Q22 17 22 21 V26 M16 14 V6 M12 10 L16 6 L20 10' stroke='white' stroke-width='2.8' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+<style>
+:root {
+  color-scheme: light;
+  --page: #f6f6f3; --surface: #fcfcfb; --surface-2: #f0efec; --ink: #0b0b0b; --ink-2: #52514e; --muted: #7a7873;
+  --grid: #e7e6e0; --axis: #c3c2b7; --border: rgba(11,11,11,0.09); --shadow: 0 1px 2px rgba(11,11,11,0.04), 0 4px 16px rgba(11,11,11,0.04);
+  --accent: #2a78d6; --accent-wash: rgba(42,120,214,0.10); --good: #0a8f0a; --good-bg: rgba(12,163,12,0.10);
+  --bad: #d03b3b; --bad-bg: rgba(208,59,59,0.10); --warn: #b86e00; --warn-bg: rgba(250,178,25,0.16);
+  --hold: #c4602f; --hold-bg: rgba(236,131,90,0.14); --queue-bar: #dcdbd4; --land-bar: #a6dca6; --good-bar: #0ca30c; --bad-bar: #d03b3b;
+  --mono: ui-monospace, "SF Mono", "Cascadia Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --page: #0f0f0e; --surface: #1a1a19; --surface-2: #232321; --ink: #f5f5f2; --ink-2: #c3c2b7; --muted: #8f8d86;
+    --grid: #2c2c2a; --axis: #45453f; --border: rgba(255,255,255,0.09); --shadow: none;
+    --accent: #3987e5; --accent-wash: rgba(57,135,229,0.16); --good: #3cc03c; --good-bg: rgba(12,163,12,0.18);
+    --bad: #ef6b6b; --bad-bg: rgba(208,59,59,0.20); --warn: #fab219; --warn-bg: rgba(250,178,25,0.16);
+    --hold: #ec835a; --hold-bg: rgba(236,131,90,0.18); --queue-bar: #3a3a37; --land-bar: #2c6e2c;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --page: #0f0f0e; --surface: #1a1a19; --surface-2: #232321; --ink: #f5f5f2; --ink-2: #c3c2b7; --muted: #8f8d86;
+  --grid: #2c2c2a; --axis: #45453f; --border: rgba(255,255,255,0.09); --shadow: none;
+  --accent: #3987e5; --accent-wash: rgba(57,135,229,0.16); --good: #3cc03c; --good-bg: rgba(12,163,12,0.18);
+  --bad: #ef6b6b; --bad-bg: rgba(208,59,59,0.20); --warn: #fab219; --warn-bg: rgba(250,178,25,0.16);
+  --hold: #ec835a; --hold-bg: rgba(236,131,90,0.18); --queue-bar: #3a3a37; --land-bar: #2c6e2c;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--page); color: var(--ink); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased; }
+.wrap { max-width: 1180px; margin: 0 auto; padding: 28px 20px 56px; }
+header.top { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-bottom: 22px; }
+.logo { width: 38px; height: 38px; border-radius: 10px; background: var(--accent); display: grid; place-items: center; flex: none; }
+.brand h1 { font-size: 20px; margin: 0; letter-spacing: -0.01em; }
+.brand p { margin: 0; color: var(--muted); font-size: 13px; }
+.spacer { flex: 1; }
+.pill { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 600; padding: 5px 11px;
+  border-radius: 999px; background: var(--surface); border: 1px solid var(--border); color: var(--ink-2); }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+.pill.live .dot { background: var(--good-bar); box-shadow: 0 0 0 0 rgba(12,163,12,0.5); animation: pulse 1.8s infinite; }
+@keyframes pulse { 70% { box-shadow: 0 0 0 7px rgba(12,163,12,0); } 100% { box-shadow: 0 0 0 0 rgba(12,163,12,0); } }
+@media (prefers-reduced-motion: reduce) { .pill.live .dot { animation: none; } }
+.theme { cursor: pointer; font: inherit; font-size: 13px; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 16px; }
+.tile, .card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; box-shadow: var(--shadow); }
+.tile { padding: 14px 16px; }
+.tile .label { color: var(--ink-2); font-size: 13px; }
+.tile .value { font-size: 28px; font-weight: 650; letter-spacing: -0.02em; margin-top: 2px; }
+.tile .sub { color: var(--muted); font-size: 12px; }
+.grid { display: grid; grid-template-columns: repeat(12, 1fr); gap: 16px; }
+.card { padding: 18px 18px 16px; min-width: 0; }
+.span-12 { grid-column: span 12; } .span-7 { grid-column: span 7; } .span-5 { grid-column: span 5; } .span-6 { grid-column: span 6; }
+@media (max-width: 900px) { .span-7, .span-5, .span-6 { grid-column: span 12; } }
+.card h2 { font-size: 15px; margin: 0; letter-spacing: -0.005em; }
+.card .hint { color: var(--muted); font-size: 13px; margin: 2px 0 12px; }
+.head { display: flex; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+.head > div:first-child { flex: 1; min-width: 200px; }
+select { font: inherit; font-size: 13px; color: var(--ink); background: var(--surface-2); border: 1px solid var(--border);
+  border-radius: 8px; padding: 5px 8px; max-width: 100%; }
+table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+th { text-align: left; color: var(--muted); font-weight: 550; font-size: 12px; padding: 6px 8px; border-bottom: 1px solid var(--grid); }
+td { padding: 7px 8px; border-bottom: 1px solid var(--grid); vertical-align: top; }
+tr:last-child td { border-bottom: none; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+.mono { font-family: var(--mono); font-size: 12.5px; }
+.scroll { overflow-x: auto; }
+.chip { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600; padding: 2px 8px;
+  border-radius: 999px; white-space: nowrap; background: var(--surface-2); color: var(--ink-2); }
+.chip::before { font-size: 11px; }
+.chip.good { background: var(--good-bg); color: var(--good); } .chip.good::before { content: "\2713"; }
+.chip.bad { background: var(--bad-bg); color: var(--bad); } .chip.bad::before { content: "\2715"; }
+.chip.hold { background: var(--hold-bg); color: var(--hold); } .chip.hold::before { content: "\275A\275A"; letter-spacing: -3px; margin-right: 2px; }
+.chip.run { background: var(--accent-wash); color: var(--accent); } .chip.run::before { content: "\25B6"; font-size: 9px; }
+.chip.wait { } .chip.wait::before { content: "\25CB"; }
+.chip.warn { background: var(--warn-bg); color: var(--warn); } .chip.warn::before { content: "\21BB"; }
+.chart { position: relative; width: 100%; }
+.chart svg { display: block; width: 100%; height: auto; overflow: visible; }
+.chart text { fill: var(--muted); font-size: 11px; font-family: system-ui, sans-serif; }
+.gridline { stroke: var(--grid); stroke-width: 1; }
+.baseline { stroke: var(--axis); stroke-width: 1; }
+.bar { fill: var(--accent); }
+.bar.dim { fill: var(--accent); opacity: 0.35; }
+.hit { fill: transparent; cursor: default; }
+.hit:hover + .bar, .bar.hover { filter: brightness(1.12); }
+.ref { stroke: var(--ink-2); stroke-width: 1; stroke-dasharray: 3 3; }
+.reflabel { fill: var(--ink-2) !important; font-weight: 600; paint-order: stroke; stroke: var(--surface); stroke-width: 4px; stroke-linejoin: round; }
+.tip { position: fixed; pointer-events: none; z-index: 10; background: var(--ink); color: var(--surface); font-size: 12.5px;
+  padding: 7px 10px; border-radius: 8px; line-height: 1.4; opacity: 0; transition: opacity .08s; max-width: 280px; }
+.tip b { font-weight: 650; }
+.legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12.5px; color: var(--ink-2); margin-top: 10px; }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.sw { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+.tree ul { list-style: none; margin: 0; padding-left: 22px; position: relative; }
+.tree > ul { padding-left: 0; }
+.tree li { position: relative; padding: 5px 0 5px 0; }
+.tree ul ul li::before { content: ""; position: absolute; left: -14px; top: 0; bottom: 0; border-left: 1px solid var(--axis); }
+.tree ul ul li:last-child::before { bottom: calc(100% - 20px); }
+.tree ul ul li::after { content: ""; position: absolute; left: -14px; top: 20px; width: 10px; border-top: 1px solid var(--axis); }
+.node { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 6px 10px; border-radius: 10px;
+  background: var(--surface-2); border: 1px solid var(--border); }
+.node .fid { font-weight: 650; font-size: 13px; }
+.node .prs { font-family: var(--mono); font-size: 12px; color: var(--ink-2); }
+.node .secs { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.tally { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.tally .big { font-size: 44px; font-weight: 700; letter-spacing: -0.03em; line-height: 1.1; }
+.tally .of { color: var(--ink-2); font-size: 15px; }
+.meter { display: flex; height: 10px; border-radius: 6px; overflow: hidden; background: var(--surface-2); margin: 12px 0 8px; gap: 2px; }
+.meter i { display: block; height: 100%; }
+.empty { color: var(--muted); font-size: 14px; padding: 18px 0; text-align: center; }
+.note { color: var(--muted); font-size: 12.5px; margin-top: 10px; }
+footer { color: var(--muted); font-size: 12.5px; margin-top: 28px; text-align: center; }
+footer a { color: inherit; }
+@media (max-width: 520px) {
+  .wrap { padding: 18px 16px 40px; }
+  .tile .value { font-size: 24px; }
+  .hide-sm { display: none; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="logo" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 32 32"><path d="M10 26 V21 Q10 17 16 14 Q22 17 22 21 V26 M16 14 V6 M12 10 L16 6 L20 10" stroke="#fff" stroke-width="2.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+    <div class="brand"><h1>SVRF live train</h1><p id="subtitle"></p></div>
+    <div class="spacer"></div>
+    <span class="pill" id="status"><span class="dot"></span><span id="status-text">idle</span></span>
+    <button class="pill theme" id="theme" type="button" aria-label="Toggle light and dark">&#9680; Theme</button>
+  </header>
+
+  <section class="tiles" id="tiles" aria-label="Totals"></section>
+
+  <div class="grid">
+    <section class="card span-7" id="queue">
+      <div class="head"><div><h2>Live queue</h2><p class="hint" id="queue-hint"></p></div></div>
+      <div class="scroll" id="queue-body"></div>
+    </section>
+    <section class="card span-5" id="tally">
+      <h2>Landed tree = gated tree</h2>
+      <p class="hint">After every merge the train fetches the merge commit and compares its tree with the tree that was gated.</p>
+      <div id="tally-body"></div>
+    </section>
+
+    <section class="card span-12" id="throughput">
+      <h2>Throughput</h2>
+      <p class="hint">Merged pull requests per hour (UTC)</p>
+      <div class="chart" id="throughput-chart"></div>
+    </section>
+
+    <section class="card span-6" id="gates">
+      <h2>Gate runs per merged PR</h2>
+      <p class="hint">Per round; bisection included. Below 1 means batching paid off.</p>
+      <div class="chart" id="gates-chart"></div>
+    </section>
+    <section class="card span-6" id="wall">
+      <h2>Wall time per merged PR</h2>
+      <p class="hint">Per round: round duration divided by pull requests merged.</p>
+      <div class="chart" id="wall-chart"></div>
+    </section>
+
+    <section class="card span-12" id="timeline">
+      <div class="head">
+        <div><h2>Batch timeline</h2><p class="hint">Each gate run: waiting (from the round start, or from when its parent batch went red), gating, then landing.</p></div>
+        <label class="hint" style="margin:0">Round <select id="round-select" aria-label="Round"></select></label>
+      </div>
+      <div class="chart" id="timeline-chart"></div>
+      <div class="legend">
+        <span><i class="sw" style="background:var(--queue-bar)"></i>Waiting</span>
+        <span><i class="sw" style="background:var(--good-bar)"></i>Gate green</span>
+        <span><i class="sw" style="background:var(--bad-bar)"></i>Gate red</span>
+        <span><i class="sw" style="background:var(--land-bar)"></i>Landing</span>
+      </div>
+    </section>
+
+    <section class="card span-7" id="bisection">
+      <div class="head">
+        <div><h2>Bisection</h2><p class="hint">A red batch is split in halves and each half is gated again, until the failing pull request is held on its own.</p></div>
+        <label class="hint" style="margin:0"><select id="tree-select" aria-label="Bisected round"></select></label>
+      </div>
+      <div class="tree" id="tree-body"></div>
+    </section>
+    <section class="card span-5" id="holds">
+      <h2>Holds</h2>
+      <p class="hint">Held pull requests are not read again until their head or what they depended on changes.</p>
+      <div class="scroll" id="holds-body"></div>
+    </section>
+  </div>
+
+  <footer>Generated <span id="generated"></span> by <code>svrf dashboard</code> &middot; svrf <span id="version"></span><span id="skipped"></span></footer>
+</div>
+<div class="tip" id="tip" role="tooltip"></div>
+<script type="application/json" id="data">{"alerts": [], "generated": "2026-09-25T23:25:26Z", "holds": [], "live": {"jobs": 2, "queue": [{"family": "F1", "number": 109, "position": 1, "reason": null, "state": "LANDED"}, {"family": "F1", "number": 110, "position": 2, "reason": null, "state": "LANDED"}], "running": false, "started": "20260925T231021Z"}, "rounds": [{"bisected": false, "families": 1, "finished": "20260925T221723Z", "gates": 1, "gates_per_pr": 1.0, "holds": 0, "merged": 1, "start": 1790374589.0, "started": "20260925T221629Z", "wall": 54, "wall_per_pr": 54.0}, {"bisected": false, "families": 1, "finished": "20260925T222402Z", "gates": 1, "gates_per_pr": 1.0, "holds": 0, "merged": 1, "start": 1790374952.0, "started": "20260925T222232Z", "wall": 90, "wall_per_pr": 90.0}, {"bisected": false, "families": 1, "finished": "20260925T224702Z", "gates": 1, "gates_per_pr": 0.5, "holds": 0, "merged": 2, "start": 1790376363.0, "started": "20260925T224603Z", "wall": 59, "wall_per_pr": 29.5}, {"bisected": false, "families": 1, "finished": "20260925T225722Z", "gates": 1, "gates_per_pr": 0.333, "holds": 0, "merged": 3, "start": 1790376948.0, "started": "20260925T225548Z", "wall": 94, "wall_per_pr": 31.3}, {"bisected": false, "families": 1, "finished": "20260925T230345Z", "gates": 1, "gates_per_pr": 1.0, "holds": 0, "merged": 1, "start": 1790377383.0, "started": "20260925T230303Z", "wall": 42, "wall_per_pr": 42.0}, {"bisected": false, "families": 1, "finished": "20260925T231127Z", "gates": 1, "gates_per_pr": 0.5, "holds": 0, "merged": 2, "start": 1790377821.0, "started": "20260925T231021Z", "wall": 66, "wall_per_pr": 33.0}], "skipped": 0, "tally": {"mismatched": 0, "unread": 0, "verified": 10}, "throughput": [{"hour": "2026-09-25T22:00Z", "merged": 7}, {"hour": "2026-09-25T23:00Z", "merged": 3}], "timeline": [{"end": 1790374635.7531886, "family": "F1", "green": true, "landed": 1790374642.0028872, "prs": [101], "queued": 1790374589.0, "round": "20260925T221629Z", "start": 1790374595.4781885, "status": "LANDED"}, {"end": 1790375025.631995, "family": "F1", "green": true, "landed": 1790375040.6901333, "prs": [102], "queued": 1790374952.0, "round": "20260925T222232Z", "start": 1790374958.7189949, "status": "LANDED"}, {"end": 1790376399.8265991, "family": "F1", "green": true, "landed": 1790376420.36311, "prs": [103, 104], "queued": 1790376363.0, "round": "20260925T224603Z", "start": 1790376373.6485991, "status": "LANDED"}, {"end": 1790376997.861979, "family": "F1", "green": true, "landed": 1790377040.9939718, "prs": [105, 106, 107], "queued": 1790376948.0, "round": "20260925T225548Z", "start": 1790376963.945979, "status": "LANDED"}, {"end": 1790377410.5528457, "family": "F1", "green": true, "landed": 1790377423.782564, "prs": [108], "queued": 1790377383.0, "round": "20260925T230303Z", "start": 1790377389.3148458, "status": "LANDED"}, {"end": 1790377855.239756, "family": "F1", "green": true, "landed": 1790377885.4285924, "prs": [109, 110], "queued": 1790377821.0, "round": "20260925T231021Z", "start": 1790377832.0057561, "status": "LANDED"}], "totals": {"gates": 6, "gates_per_pr": 0.6, "holds": 0, "merged": 10, "rounds": 6, "wall_per_pr": 40.5, "wall_seconds": 405}, "trees": [], "version": "0.1.0"}</script>
+<script>
+(function () {
+  "use strict";
+  var D = JSON.parse(document.getElementById("data").textContent);
+  var $ = function (id) { return document.getElementById(id); };
+  var esc = function (s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+    return {"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]; }); };
+  var fmt = function (n, d) { return n == null ? "—" : Number(n).toLocaleString(undefined, {maximumFractionDigits: d == null ? 0 : d, minimumFractionDigits: d || 0}); };
+  var dur = function (s) {
+    if (s == null) return "—";
+    s = Math.round(s);
+    if (s < 60) return s + " s";
+    var m = Math.floor(s / 60), r = s % 60;
+    if (m < 60) return m + " min" + (r ? " " + r + " s" : "");
+    return Math.floor(m / 60) + " h " + (m % 60) + " min";
+  };
+  var stampTime = function (st) { return st ? st.slice(0, 4) + "-" + st.slice(4, 6) + "-" + st.slice(6, 8) + " " + st.slice(9, 11) + ":" + st.slice(11, 13) + " UTC" : ""; };
+  var clock = function (ts) { var d = new Date(ts * 1000); return String(d.getUTCHours()).padStart(2, "0") + ":" + String(d.getUTCMinutes()).padStart(2, "0"); };
+  var T = D.totals;
+
+  // ---- theme toggle (remembered per viewer when storage is available)
+  var root = document.documentElement;
+  try { var saved = localStorage.getItem("svrf-theme"); if (saved) root.setAttribute("data-theme", saved); } catch (e) {}
+  $("theme").addEventListener("click", function () {
+    var dark = root.getAttribute("data-theme") ? root.getAttribute("data-theme") === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+    root.setAttribute("data-theme", dark ? "light" : "dark");
+    try { localStorage.setItem("svrf-theme", root.getAttribute("data-theme")); } catch (e) {}
+  });
+
+  // ---- header, tiles
+  $("generated").textContent = D.generated.replace("T", " ").replace("Z", " UTC");
+  $("version").textContent = D.version;
+  if (D.skipped) $("skipped").textContent = " · " + D.skipped + " unreadable receipt" + (D.skipped === 1 ? "" : "s") + " skipped";
+  var first = D.rounds.length ? D.rounds[0].started : null, last = D.rounds.length ? D.rounds[D.rounds.length - 1].started : null;
+  $("subtitle").textContent = D.rounds.length ? T.rounds + " rounds · " + stampTime(first) + " → " + stampTime(last) : "No receipts yet";
+  if (D.live && D.live.running) { $("status").classList.add("live"); $("status-text").textContent = "Round running"; }
+  else if (D.live) { $("status-text").textContent = "Idle since " + stampTime(D.live.started).slice(11); }
+  var tiles = [
+    ["Merged PRs", fmt(T.merged), T.rounds + " rounds"],
+    ["Gate runs", fmt(T.gates), "reused red results not counted"],
+    ["Gates per PR", fmt(T.gates_per_pr, 2), "lower is better"],
+    ["Wall time per PR", dur(T.wall_per_pr), "round time ÷ merged"],
+    ["Holds", fmt(T.holds), "with reasons below"]
+  ];
+  $("tiles").innerHTML = tiles.map(function (t) {
+    return '<div class="tile"><div class="label">' + t[0] + '</div><div class="value">' + t[1] + '</div><div class="sub">' + t[2] + "</div></div>";
+  }).join("");
+
+  // ---- chips
+  var CHIP = {LANDED: "good", GREEN: "good", GATING: "run", LANDING: "run", HELD: "hold", RED: "bad", BISECTED: "bad",
+    TREE_MISMATCH: "bad", RETRY: "warn", PENDING: "wait", QUEUED: "wait", ADMITTED: "wait", OUT: "hold",
+    REQUEUED: "warn", PREFIX_LANDED_UNGATED: "warn", SPECULATION_VOID: "wait", GATE_RETRY: "warn", LANDED_TREE_UNREAD: "warn"};
+  var chip = function (state) { return '<span class="chip ' + (CHIP[state] || "wait") + '">' + esc(String(state).replace(/_/g, " ").toLowerCase()) + "</span>"; };
+
+  // ---- live queue
+  (function () {
+    var L = D.live;
+    if (!L || !L.queue.length) { $("queue-body").innerHTML = '<div class="empty">Nothing queued.</div>'; return; }
+    $("queue-hint").textContent = (L.running ? "Round in progress, started " : "Last round, started ") + stampTime(L.started) + " · " + L.jobs + " gate slot" + (L.jobs === 1 ? "" : "s");
+    $("queue-body").innerHTML = "<table><thead><tr><th class=num>#</th><th>Pull request</th><th>Batch</th><th>State</th><th class=hide-sm>Reason</th></tr></thead><tbody>" +
+      L.queue.map(function (q) {
+        return "<tr><td class=num>" + q.position + '</td><td class="mono">#' + esc(q.number) + '</td><td class="mono">' + esc(q.family || "—") +
+          "</td><td>" + chip(q.state) + '</td><td class="hide-sm mono">' + esc(q.reason || "") + "</td></tr>";
+      }).join("") + "</tbody></table>";
+  })();
+
+  // ---- tally
+  (function () {
+    var t = D.tally, total = t.verified + t.mismatched + t.unread;
+    if (!total) { $("tally-body").innerHTML = '<div class="empty">No landings yet.</div>'; return; }
+    var pct = function (n) { return (100 * n / total) + "%"; };
+    var mismatchAlerts = D.alerts.filter(function (a) { return a.alert === "TREE_MISMATCH"; });
+    $("tally-body").innerHTML =
+      '<div class="tally"><span class="big">' + fmt(t.verified) + '</span><span class="of">of ' + fmt(total) + " landings verified identical</span></div>" +
+      '<div class="meter" role="img" aria-label="' + t.verified + " verified, " + t.mismatched + " mismatched, " + t.unread + ' unread">' +
+      (t.verified ? '<i style="width:' + pct(t.verified) + ';background:var(--good-bar)"></i>' : "") +
+      (t.unread ? '<i style="width:' + pct(t.unread) + ';background:var(--warn)"></i>' : "") +
+      (t.mismatched ? '<i style="width:' + pct(t.mismatched) + ';background:var(--bad-bar)"></i>' : "") + "</div>" +
+      "<table><tbody>" +
+      "<tr><td>" + chip("LANDED") + " tree identical</td><td class=num>" + fmt(t.verified) + "</td></tr>" +
+      '<tr><td><span class="chip bad">tree mismatch</span></td><td class=num>' + fmt(t.mismatched) + "</td></tr>" +
+      '<tr><td><span class="chip warn">tree unread</span></td><td class=num>' + fmt(t.unread) + "</td></tr></tbody></table>" +
+      (t.unread ? '<p class="note">An unread tree is a merge whose commit could not be fetched when it was compared. It is retried, never counted as a mismatch' +
+        (mismatchAlerts.some(function (a) { return a.observed == null; }) ? " (older receipts raised it as a mismatch alert with no observed tree)" : "") + ".</p>" : "");
+  })();
+
+  // ---- tooltip
+  var tip = $("tip");
+  function showTip(html, ev) {
+    tip.innerHTML = html; tip.style.opacity = 1;
+    var x = ev.clientX + 14, y = ev.clientY + 14, w = tip.offsetWidth, h = tip.offsetHeight;
+    if (x + w > innerWidth - 8) x = ev.clientX - w - 14;
+    if (y + h > innerHeight - 8) y = ev.clientY - h - 14;
+    tip.style.left = x + "px"; tip.style.top = y + "px";
+  }
+  function hideTip() { tip.style.opacity = 0; }
+  function bindTips(el) {
+    el.querySelectorAll("[data-tip]").forEach(function (n) {
+      n.addEventListener("mousemove", function (ev) { showTip(n.getAttribute("data-tip"), ev); });
+      n.addEventListener("mouseleave", hideTip);
+    });
+  }
+
+  // ---- column chart
+  function niceStep(raw) {
+    var p = Math.pow(10, Math.floor(Math.log10(raw))), m = raw / p;
+    return (m <= 1 ? 1 : m <= 2 ? 2 : m <= 2.5 ? 2.5 : m <= 5 ? 5 : 10) * p;
+  }
+  function scale(max, unit) {
+    if (!(max > 0)) return {top: 4, step: 1};
+    var step = niceStep(max / 4);
+    if (unit && step % unit) step = Math.ceil(step / unit) * unit;
+    return {top: Math.ceil(max / step - 1e-9) * step, step: step};
+  }
+  function columns(el, rows, opt) {
+    var W = Math.max(280, el.clientWidth), H = opt.height || 200, L = 40, R = 8, TOP = 12, B = 26;
+    if (!rows.length) { el.innerHTML = '<div class="empty">No data yet.</div>'; return; }
+    var vals = rows.map(function (r) { return r.value == null ? 0 : r.value; });
+    var sc = scale(Math.max.apply(null, vals.concat([opt.ref || 0])), opt.unit), top = sc.top, iw = W - L - R, ih = H - TOP - B;
+    var band = iw / rows.length, bw = Math.max(2, Math.min(24, band - Math.max(2, band * 0.28)));
+    var y = function (v) { return TOP + ih - (v / top) * ih; };
+    var s = '<svg viewBox="0 0 ' + W + " " + H + '" role="img" aria-label="' + esc(opt.label) + '">';
+    for (var v = 0; v <= top + 1e-9; v += sc.step) {
+      var yy = y(v), i = v;
+      s += '<line class="' + (i ? "gridline" : "baseline") + '" x1="' + L + '" x2="' + (W - R) + '" y1="' + yy + '" y2="' + yy + '"/>';
+      s += '<text x="' + (L - 8) + '" y="' + (yy + 4) + '" text-anchor="end">' + esc(opt.tick(v)) + "</text>";
+    }
+    var every = Math.max(1, Math.ceil(rows.length / Math.max(2, Math.floor(iw / 64))));
+    rows.forEach(function (r, i) {
+      var x = L + i * band + (band - bw) / 2, v = r.value;
+      if (v != null && v > 0) {
+        var h = Math.max(1, (v / top) * ih), yy = TOP + ih - h, rad = Math.min(4, bw / 2, h);
+        s += '<path class="bar' + (r.dim ? " dim" : "") + '" d="M' + x + "," + (TOP + ih) + "V" + (yy + rad) + "Q" + x + "," + yy + " " + (x + rad) + "," + yy +
+          "H" + (x + bw - rad) + "Q" + (x + bw) + "," + yy + " " + (x + bw) + "," + (yy + rad) + "V" + (TOP + ih) + 'Z"/>';
+      }
+      s += '<rect class="hit" x="' + (L + i * band) + '" y="' + TOP + '" width="' + band + '" height="' + ih + '" data-tip="' + esc(r.tip) + '"/>';
+      if (i % every === 0) s += '<text x="' + (L + i * band + band / 2) + '" y="' + (H - 8) + '" text-anchor="middle">' + esc(r.label) + "</text>";
+    });
+    if (opt.ref != null) {
+      var ry = y(opt.ref);
+      s += '<line class="ref" x1="' + L + '" x2="' + (W - R) + '" y1="' + ry + '" y2="' + ry + '"/>';
+      s += '<text class="reflabel" x="' + (W - R) + '" y="' + (ry - 5) + '" text-anchor="end">' + esc(opt.refLabel) + "</text>";
+    }
+    el.innerHTML = s + "</svg>";
+    bindTips(el);
+  }
+
+  // ---- timeline (Gantt)
+  function timeline(el, round) {
+    var bars = D.timeline.filter(function (b) { return b.round === round; });
+    if (!bars.length) { el.innerHTML = '<div class="empty">No gate runs in this round.</div>'; return; }
+    var t0 = Math.min.apply(null, bars.map(function (b) { return b.queued != null ? b.queued : b.start; }));
+    var t1 = Math.max.apply(null, bars.map(function (b) { return Math.max(b.end, b.landed || 0); }));
+    var span = Math.max(60, t1 - t0), W = Math.max(300, el.clientWidth), narrow = W < 520;
+    var L = narrow ? 64 : 150, R = 12, TOP = 8, rowH = 26, B = 24, H = TOP + bars.length * rowH + B, iw = W - L - R;
+    var x = function (t) { return L + ((t - t0) / span) * iw; };
+    var stepMin = [1, 2, 5, 10, 15, 30, 60].find(function (m) { return span / (m * 60) <= Math.max(3, iw / 80); }) || 120;
+    var s = '<svg viewBox="0 0 ' + W + " " + H + '" role="img" aria-label="Batch timeline">';
+    for (var m = 0; m * 60 <= span; m += stepMin) {
+      var xx = x(t0 + m * 60);
+      s += '<line class="gridline" x1="' + xx + '" x2="' + xx + '" y1="' + TOP + '" y2="' + (H - B) + '"/>';
+      s += '<text x="' + xx + '" y="' + (H - 7) + '" text-anchor="middle">+' + m + "m</text>";
+    }
+    bars.forEach(function (b, i) {
+      var y = TOP + i * rowH + 5, h = rowH - 10, prs = b.prs.map(function (n) { return "#" + n; });
+      var label = narrow ? b.family : b.family + "  " + (prs.length > 3 ? prs.slice(0, 2).join(" ") + " +" + (prs.length - 2) : prs.join(" "));
+      s += '<text x="' + (L - 10) + '" y="' + (y + h / 2 + 4) + '" text-anchor="end" style="fill:var(--ink-2)">' + esc(label) + "</text>";
+      var seg = function (a, z, fill, op) {
+        var w = Math.max(2, x(z) - x(a));
+        return '<rect x="' + x(a) + '" y="' + y + '" width="' + w + '" height="' + h + '" rx="4" style="fill:' + fill + (op ? ";opacity:" + op : "") + '"/>';
+      };
+      if (b.queued != null && b.start > b.queued) s += seg(b.queued, b.start, "var(--queue-bar)");
+      s += seg(b.start, b.end, b.green ? "var(--good-bar)" : "var(--bad-bar)");
+      if (b.landed && b.landed > b.end) s += seg(b.end, b.landed, "var(--land-bar)");
+      var tipHtml = "<b>" + esc(b.family) + "</b> · " + esc(prs.join(" ")) + "<br>" + esc(b.status.replace(/_/g, " ").toLowerCase()) +
+        "<br>waited " + dur(b.start - (b.queued || b.start)) + " · gated " + dur(b.end - b.start) + (b.landed ? " · landed " + dur(b.landed - b.end) + " later" : "");
+      s += '<rect class="hit" x="' + L + '" y="' + (y - 5) + '" width="' + iw + '" height="' + rowH + '" data-tip="' + esc(tipHtml) + '"/>';
+    });
+    el.innerHTML = s + "</svg>";
+    bindTips(el);
+  }
+
+  // ---- bisection tree
+  function tree(round) {
+    var t = D.trees.filter(function (x) { return x.round === round; })[0];
+    if (!t) { $("tree-body").innerHTML = '<div class="empty">No red batches: nothing needed bisecting.</div>'; return; }
+    var node = function (n) {
+      var state = n.status === "BISECTED" ? "RED" : n.status;
+      var verdict = n.reused ? '<span class="secs">reused red result</span>' : '<span class="secs">' + (n.seconds != null ? dur(n.seconds) + " gate" : "") + "</span>";
+      return '<li><span class="node"><span class="fid">' + esc(n.id) + '</span><span class="prs">' + n.prs.map(function (p) { return "#" + esc(p); }).join(" ") +
+        "</span>" + chip(state) + verdict + "</span>" + (n.children.length ? "<ul>" + n.children.map(node).join("") + "</ul>" : "") + "</li>";
+    };
+    $("tree-body").innerHTML = "<ul>" + t.roots.map(node).join("") + "</ul>";
+  }
+
+  // ---- holds
+  (function () {
+    if (!D.holds.length) { $("holds-body").innerHTML = '<div class="empty">No holds.</div>'; return; }
+    $("holds-body").innerHTML = "<table><thead><tr><th>PR</th><th>Reason</th><th>First failing line</th></tr></thead><tbody>" +
+      D.holds.slice().reverse().map(function (h) {
+        return '<tr><td class="mono">#' + esc(h.number) + "</td><td>" + chip("HELD") + ' <span class="mono">' + esc(h.reason) +
+          '</span></td><td class="mono">' + esc(h.detail) + '<div class="note" style="margin:2px 0 0">' + esc(stampTime(h.round)) + "</div></td></tr>";
+      }).join("") + "</tbody></table>";
+  })();
+
+  // ---- round selectors
+  var byFamilies = D.rounds.filter(function (r) { return r.gates > 0; });
+  var busiest = byFamilies.slice().sort(function (a, b) { return b.families - a.families || b.merged - a.merged; })[0];
+  $("round-select").innerHTML = byFamilies.map(function (r) {
+    return '<option value="' + esc(r.started) + '"' + (busiest && r.started === busiest.started ? " selected" : "") + ">" + esc(stampTime(r.started)) +
+      " · " + r.merged + " merged, " + r.gates + " gate" + (r.gates === 1 ? "" : "s") + "</option>";
+  }).join("");
+  var count = function (n) { return 1 + n.children.reduce(function (a, c) { return a + count(c); }, 0); };
+  var deepest = D.trees.slice().sort(function (a, b) {
+    return b.roots.reduce(function (x, n) { return x + count(n); }, 0) - a.roots.reduce(function (x, n) { return x + count(n); }, 0); })[0];
+  $("tree-select").innerHTML = D.trees.map(function (t) {
+    return '<option value="' + esc(t.round) + '"' + (deepest && t.round === deepest.round ? " selected" : "") + ">" + esc(stampTime(t.round)) + "</option>"; }).join("");
+  if (!D.trees.length) $("tree-select").style.display = "none";
+
+  function draw() {
+    var hours = D.throughput.map(function (h) {
+      return {value: h.merged, label: h.hour.slice(11, 16), tip: "<b>" + h.merged + " merged</b><br>" + esc(h.hour.replace("T", " ").replace("Z", " UTC"))};
+    });
+    columns($("throughput-chart"), hours, {label: "Merged pull requests per hour", tick: function (v) { return fmt(v); }, unit: 1, height: 220});
+    var finished = D.rounds.filter(function (r) { return r.merged > 0; });
+    columns($("gates-chart"), finished.map(function (r) {
+      return {value: r.gates_per_pr, label: stampTime(r.started).slice(11, 16), tip: "<b>" + fmt(r.gates_per_pr, 2) + " gates per PR</b><br>" + r.gates + " gates, " + r.merged + " merged<br>" + esc(stampTime(r.started))};
+    }), {label: "Gate runs per merged PR per round", tick: function (v) { return fmt(v, 2); }, ref: 1, refLabel: "one gate per PR"});
+    columns($("wall-chart"), finished.map(function (r) {
+      return {value: r.wall_per_pr, label: stampTime(r.started).slice(11, 16), tip: "<b>" + dur(r.wall_per_pr) + " per PR</b><br>round took " + dur(r.wall) + ", " + r.merged + " merged<br>" + esc(stampTime(r.started))};
+    }), {label: "Wall time per merged PR per round", tick: function (v) { return dur(v).replace(" min", "m").replace(" s", "s"); }, unit: 30,
+      ref: T.wall_per_pr, refLabel: "overall " + dur(T.wall_per_pr)});
+    timeline($("timeline-chart"), $("round-select").value);
+  }
+  $("round-select").addEventListener("change", draw);
+  $("tree-select").addEventListener("change", function () { tree($("tree-select").value); });
+  tree($("tree-select").value);
+  draw();
+  var pending;
+  addEventListener("resize", function () { clearTimeout(pending); pending = setTimeout(draw, 120); });
+})();
+</script>
+</body>
+</html>

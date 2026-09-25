@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SVRF — the merge queue built for AI agent swarms</title>
+<meta name="description" content="SVRF is a merge queue for AI coding agents: Claude Code, Codex and other agent swarms opening pull requests faster than CI can gate them one by one. It batches, bisects and proves every landing.">
+<link rel="icon" href="data:,">
+<style>
+  :root{
+    --bg:#fbfbfa; --bg-alt:#f3f2ee; --card:#ffffff; --border:rgba(11,11,11,.10);
+    --text:#0b0b0b; --text-soft:#52514e; --text-mute:#7a7873;
+    --accent:#2a78d6; --accent-strong:#1c5cab; --good:#0ca30c;
+    --chip-bg:rgba(42,120,214,.10); --code-bg:#0d1524; --code-text:#e6e6e6;
+    --shadow: 0 1px 2px rgba(11,11,11,.06), 0 8px 24px rgba(11,11,11,.05);
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#101010; --bg-alt:#161615; --card:#1a1a19; --border:rgba(255,255,255,.10);
+      --text:#f5f5f2; --text-soft:#c3c2b7; --text-mute:#8f8d86;
+      --accent:#3987e5; --accent-strong:#6da7ec; --good:#33c76b;
+      --chip-bg:rgba(57,135,229,.14); --code-bg:#0a0a0a; --code-text:#e6e6e6;
+      --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.35);
+    }
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    background:var(--bg); color:var(--text);
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    line-height:1.55;
+  }
+  a{color:var(--accent); text-decoration:none}
+  a:hover{text-decoration:underline}
+  .wrap{max-width:980px; margin:0 auto; padding:0 20px}
+  header.top{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:18px 20px; max-width:980px; margin:0 auto; gap:12px; flex-wrap:wrap;
+  }
+  .brand{display:flex; align-items:center; gap:10px; font-weight:700; font-size:1.05rem}
+  .brand .dot{width:10px;height:10px;border-radius:3px;background:var(--accent);display:inline-block}
+  nav.top-links{display:flex; gap:18px; flex-wrap:wrap; font-size:.92rem}
+  nav.top-links a{color:var(--text-soft)}
+  nav.top-links a:hover{color:var(--accent)}
+
+  .hero{padding:28px 0 8px}
+  .hero img{width:100%; height:auto; border-radius:18px; display:block; box-shadow:var(--shadow)}
+  h1.tagline{font-size:clamp(1.5rem,3.4vw,2.15rem); margin:28px 0 10px; letter-spacing:-.01em}
+  p.lede{font-size:1.08rem; color:var(--text-soft); max-width:760px}
+  .cta-row{display:flex; gap:12px; flex-wrap:wrap; margin:22px 0 6px}
+  .btn{
+    display:inline-block; padding:11px 18px; border-radius:10px; font-weight:600;
+    font-size:.95rem; border:1px solid var(--border);
+  }
+  .btn.primary{background:var(--accent); border-color:var(--accent); color:#fff}
+  .btn.primary:hover{background:var(--accent-strong); text-decoration:none}
+  .btn.ghost{background:transparent; color:var(--text)}
+  .btn.ghost:hover{border-color:var(--accent); color:var(--accent); text-decoration:none}
+
+  section{padding:36px 0}
+  section.alt{background:var(--bg-alt)}
+  section.alt > .wrap{padding-top:36px; padding-bottom:36px}
+  h2{font-size:1.5rem; margin:0 0 6px; letter-spacing:-.01em}
+  p.section-sub{color:var(--text-mute); margin:0 0 22px; max-width:680px}
+
+  .panel{background:var(--card); border:1px solid var(--border); border-radius:16px; box-shadow:var(--shadow); overflow:hidden}
+  .panel img{width:100%; height:auto; display:block}
+
+  .stat-row{display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-top:20px}
+  .stat{background:var(--card); border:1px solid var(--border); border-radius:12px; padding:16px; text-align:center}
+  .stat .n{font-size:1.55rem; font-weight:750; color:var(--accent)}
+  .stat .l{font-size:.82rem; color:var(--text-mute); margin-top:4px}
+  @media (max-width:720px){ .stat-row{grid-template-columns:repeat(2,1fr)} }
+
+  .steps{counter-reset:step; display:grid; gap:16px; margin-top:20px}
+  .step{
+    background:var(--card); border:1px solid var(--border); border-radius:14px; padding:18px 20px;
+    display:grid; grid-template-columns:auto 1fr; gap:16px; align-items:start;
+  }
+  .step .num{
+    counter-increment:step; width:34px; height:34px; border-radius:50%; background:var(--chip-bg);
+    color:var(--accent-strong); font-weight:750; display:flex; align-items:center; justify-content:center;
+  }
+  .step .num::before{content:counter(step)}
+  .step h3{margin:2px 0 6px; font-size:1.02rem}
+  pre{
+    background:var(--code-bg); color:var(--code-text); padding:12px 14px; border-radius:10px;
+    overflow-x:auto; font-size:.86rem; margin:8px 0 0;
+  }
+  code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+  p code, li code{background:var(--chip-bg); padding:1px 5px; border-radius:5px; font-size:.9em}
+
+  .offer{
+    background:var(--card); border:1px solid var(--border); border-radius:16px; padding:26px 28px;
+    box-shadow:var(--shadow);
+  }
+  .offer .price{font-size:1.7rem; font-weight:800; color:var(--accent)}
+  .offer ul{margin:14px 0; padding-left:20px; color:var(--text-soft)}
+  .offer ul li{margin:6px 0}
+
+  .link-grid{display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-top:18px}
+  .link-grid a{
+    display:block; background:var(--card); border:1px solid var(--border); border-radius:12px;
+    padding:14px 16px; color:var(--text); font-weight:600; font-size:.92rem; text-align:center;
+  }
+  .link-grid a:hover{border-color:var(--accent); color:var(--accent); text-decoration:none}
+  @media (max-width:720px){ .link-grid{grid-template-columns:repeat(2,1fr)} }
+
+  footer{padding:32px 0 46px; color:var(--text-mute); font-size:.85rem}
+  footer a{color:var(--text-mute)}
+  footer a:hover{color:var(--accent)}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="brand"><span class="dot"></span> SVRF</div>
+  <nav class="top-links">
+    <a href="https://github.com/nybarius/SVRF">Repository</a>
+    <a href="https://github.com/marketplace/actions/svrf">Marketplace</a>
+    <a href="https://github.com/nybarius/SVRF/tree/main/docs">Docs</a>
+    <a href="https://github.com/nybarius/SVRF/blob/main/proofs/README.md">Proofs</a>
+    <a href="dashboard/">Live dashboard</a>
+  </nav>
+</header>
+
+<div class="wrap hero">
+  <img src="img/hero.svg" alt="SVRF: the merge queue built for agent swarms. Batches, bisects, and proves every landing.">
+  <h1 class="tagline">The merge queue built for AI agent swarms — batches, bisects, and proves every landing.</h1>
+  <p class="lede">
+    SVRF is a merge queue for repositories where AI coding agents — Claude Code, Codex and
+    similar swarms — open pull requests faster than CI can gate them one by one. It watches a
+    GitHub repository, folds compatible ready pull requests into a merge train, runs your gate
+    command once per batch, bisects a red batch down to the pull request that broke it, and
+    lands the rest with ordinary merge commits — checking after every merge that the base
+    branch holds exactly the tree that was gated.
+  </p>
+  <div class="cta-row">
+    <a class="btn primary" href="#hire-me">Hire me — $2,500 deployment</a>
+    <a class="btn ghost" href="https://github.com/nybarius/SVRF">View on GitHub</a>
+    <a class="btn ghost" href="dashboard/">Live dashboard</a>
+  </div>
+</div>
+
+<section class="alt">
+  <div class="wrap">
+    <h2>One machine, one day, one repository</h2>
+    <p class="section-sub">
+      Measured on a 17,000-declaration Lean 4 monorepo fed by a swarm of coding agents opening
+      pull requests, on a self-hosted runner. All figures are from that day's real run
+      receipts — see <a href="https://github.com/nybarius/SVRF/blob/main/docs/BENCHMARK.md">docs/BENCHMARK.md</a>
+      for the full numbers and caveats.
+    </p>
+    <div class="panel"><img src="img/benchmark.svg" alt="Benchmark: 5.8 to 16.3 merges per hour, about 3 minutes to about 47 seconds of wall time per PR, 0.79 gate runs per merged PR; best batch 13 PRs in 2 gate runs in 4:46"></div>
+    <div class="stat-row">
+      <div class="stat"><div class="n">5.8 → 16.3</div><div class="l">merges / hour</div></div>
+      <div class="stat"><div class="n">0.79</div><div class="l">gate runs per merged PR</div></div>
+      <div class="stat"><div class="n">~47s</div><div class="l">wall time per merged PR</div></div>
+      <div class="stat"><div class="n">13 / 2 / 4:46</div><div class="l">best batch: PRs / gates / time</div></div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <h2>How a round works</h2>
+    <p class="section-sub">
+      Admission, conflict-aware batching, one gate run per family, bisection of anything red,
+      and a landing step that checks the base only ever holds a tree that was actually gated.
+    </p>
+    <div class="panel"><img src="img/architecture.svg" alt="Architecture: PR swarm, admission, batch planner, gate slots with bisection of red batches, landing with a tree check, main"></div>
+  </div>
+</section>
+
+<section class="alt">
+  <div class="wrap">
+    <h2>Install in three steps</h2>
+    <p class="section-sub">Works as a GitHub Action, a CLI, or a container — no dependencies beyond git and the <code>gh</code> CLI.</p>
+    <div class="steps">
+      <div class="step">
+        <div class="num"></div>
+        <div>
+          <h3>Add the workflow</h3>
+          <p>No local install, no <code>svrf.toml</code>: on its first run it detects your project and gate command.</p>
+          <pre><code># .github/workflows/svrf.yml
+name: svrf
+on:
+  schedule: [{cron: "*/5 * * * *"}]
+  pull_request: {types: [ready_for_review]}
+jobs:
+  round:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: nybarius/SVRF@v0.1.0
+        with:
+          github-token: ${{ secrets.SVRF_TOKEN }}</code></pre>
+        </div>
+      </div>
+      <div class="step">
+        <div class="num"></div>
+        <div>
+          <h3>Configure</h3>
+          <p>The Action needs nothing further. The CLI writes <code>svrf.toml</code> by detection and checks token scopes, branch protection and the gate command.</p>
+          <pre><code>svrf init
+svrf doctor</code></pre>
+        </div>
+      </div>
+      <div class="step">
+        <div class="num"></div>
+        <div>
+          <h3>Run</h3>
+          <p>One round, or keep it going as a timer, a systemd service, or a container.</p>
+          <pre><code>svrf run --once     # or: svrf watch</code></pre>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="hire-me">
+  <div class="wrap">
+    <h2>Hire me / Deployment</h2>
+    <div class="offer">
+      <div class="price">$2,500 — fixed price</div>
+      <p style="color:var(--text-soft); margin-top:6px">I set SVRF up on your repository and leave it running:</p>
+      <ul>
+        <li>installed on your runners (GitHub-hosted or self-hosted), with the token or GitHub App permissions scoped to your repository;</li>
+        <li>your real gate wired in (tests, build, lint, or a Lean/Rust/Python preset), with batch size and parallel gates tuned to your CI;</li>
+        <li>branch protection, the PR status check and the live PR comment configured;</li>
+        <li>the dashboard published to GitHub Pages;</li>
+        <li>a before/after report of merges per hour and gates per merged PR on your own PRs;</li>
+        <li>30 days of email support after go-live.</li>
+      </ul>
+      <p style="color:var(--text-soft)">Typical delivery is one week from access. Larger estates (monorepos, many repositories, air-gapped runners) and ongoing support are quoted separately.</p>
+      <div class="cta-row">
+        <a class="btn primary" href="mailto:nybarius@gmail.com?subject=SVRF%20deployment&body=Repository%20or%20org%3A%0AGate%20command%20(tests%2Fbuild)%3A%0ARunners%20(hosted%20or%20self-hosted)%3A%0APRs%20per%20day%3A%0ATarget%20start%20date%3A">Email me about a deployment</a>
+      </div>
+      <p style="color:var(--text-mute); font-size:.88rem; margin-top:14px">
+        Or write to <strong>nybarius@gmail.com</strong> with your repository, gate command and
+        runner setup. Replies are private; nothing goes on the issue tracker.
+      </p>
+    </div>
+  </div>
+</section>
+
+<section class="alt">
+  <div class="wrap">
+    <h2>Learn more</h2>
+    <div class="link-grid">
+      <a href="https://github.com/nybarius/SVRF">GitHub repository</a>
+      <a href="https://github.com/marketplace/actions/svrf">GitHub Marketplace</a>
+      <a href="https://github.com/nybarius/SVRF/tree/main/docs">Documentation</a>
+      <a href="https://github.com/nybarius/SVRF/blob/main/proofs/README.md">Formal proofs</a>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    SVRF is licensed under <a href="https://github.com/nybarius/SVRF/blob/main/LICENSE">PolyForm Shield 1.0.0</a>
+    — free to use, modify and redistribute, including inside a company for its own repositories.
+    Commercial terms: <a href="https://github.com/nybarius/SVRF/blob/main/COMMERCIAL.md">COMMERCIAL.md</a>.
+  </div>
+</footer>
+
+</body>
+</html>
