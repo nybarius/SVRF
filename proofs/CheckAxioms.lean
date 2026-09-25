@@ -22,3 +22,15 @@ open BraidedTrain
 #print axioms two_owners_end_gated
 #print axioms reland_tree
 #print axioms reland_gate
+#print axioms count_unionLines
+#print axioms unionLines_assoc
+#print axioms unionLines_comm
+#print axioms union_order_visible
+#print axioms change_comm
+#print axioms family_perm
+#print axioms stack_lands_gated
+#print axioms stack_fold_through
+#print axioms stacked_verdict_does_not_carry
+#print axioms stackStatus_landed_iff
+#print axioms stackStatus_void_iff
+#print axioms stackStatus_bisected_iff
