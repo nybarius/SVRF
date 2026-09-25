@@ -22,6 +22,7 @@ from typing import Callable
 
 from . import history
 from .errors import ReadFailed
+from .redact import redact
 
 UNAVAILABLE_EXITS = (126, 127)
 
@@ -61,5 +62,6 @@ class Admission:
             raise ReadFailed(f"ADMISSION_COMMAND_UNAVAILABLE:{done.returncode}")
         if done.returncode == 0:
             return []
-        lines = [line.strip() for line in (done.stdout + done.stderr).splitlines() if line.strip()]
+        output = redact(done.stdout + done.stderr, env)
+        lines = [line.strip() for line in output.splitlines() if line.strip()]
         return [f"check:{line[:200]}" for line in lines[-5:]] or [f"check:exit={done.returncode}"]

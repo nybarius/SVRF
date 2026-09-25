@@ -29,6 +29,7 @@ from contextlib import contextmanager
 from pathlib import Path
 
 from .locks import SlotPool, flocked
+from .redact import redact
 from .rules import gate_infra_failure
 
 ANSI = re.compile(r"\x1b\[[0-9;]*m")
@@ -110,7 +111,9 @@ class CommandGate:
                 rc = done.returncode
             except subprocess.TimeoutExpired:
                 rc = None
-        return rc, log.read_text(encoding="utf-8", errors="replace"), round(time.monotonic() - started, 3)
+        text = redact(log.read_text(encoding="utf-8", errors="replace"), env)
+        log.write_text(text, encoding="utf-8")  # the log on disk is redacted too, not only what we return
+        return rc, text, round(time.monotonic() - started, 3)
 
     def run(self, base: str, commit: str, label: str = "") -> dict:
         slot = self.slots.acquire()
