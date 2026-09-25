@@ -23,10 +23,12 @@ import sys
 import time
 from pathlib import Path
 
-from . import __version__
+from . import __version__, replay as replayer
 from .app import build, ensure_clone
 from .config import ConfigError, load
 from .errors import ReadFailed
+from .git import RealGit
+from .github import RealGitHub
 from .locks import owner_lock
 from .train import Train
 
@@ -62,7 +64,7 @@ def status(config) -> dict:
     return out
 
 
-def main(argv: list[str] | None = None) -> int:
+def main(argv: list[str] | None = None, *, github=None) -> int:
     ap = argparse.ArgumentParser(prog="svrf", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--version", action="version", version=f"svrf {__version__}")
     ap.add_argument("--config", default=os.environ.get("SVRF_CONFIG") or "svrf.toml")
@@ -82,6 +84,12 @@ def main(argv: list[str] | None = None) -> int:
     forget = sub.add_parser("forget", help="drop pull requests from the held memory")
     forget.add_argument("numbers")
     sub.add_parser("config", help="print the parsed configuration")
+    replay_cmd = sub.add_parser("replay", help="admission and planning against an already-merged snapshot")
+    replay_cmd.add_argument("--merged", required=True, help="already-merged pull request numbers, e.g. 101,102")
+    replay_cmd.add_argument("--base", default=None,
+                            help="the shared round base (a sha); default: every listed pull request's own "
+                                 "reconstructed base, which must then be identical")
+    replay_cmd.add_argument("--gate", action="store_true", help="also run the configured gate on each family")
     args = ap.parse_args(argv)
 
     try:
@@ -96,6 +104,26 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if args.command == "status":
         _print(status(config))
+        return 0
+    if args.command == "replay":
+        try:
+            ensure_clone(config)
+        except ReadFailed as failure:
+            _print({"tick": "RETRY", "reason": failure.reason})
+            return 0
+        hub = github or RealGitHub(config.repo)
+        git = RealGit(config.clone, base=config.base)
+        numbers = _numbers(args.merged)
+        found, problems = replayer.reconstruct(git, hub.merge_commit, numbers)
+        report = {"requested": numbers, "problems": problems}
+        if found:
+            try:
+                report.update(replayer.run(config, found, base=args.base, gate=args.gate))
+            except replayer.ReplayError as error:
+                report["error"] = str(error)
+                _print(report)
+                return 2
+        _print(report)
         return 0
 
     dry_run = bool(getattr(args, "dry_run", False)) or args.command == "plan"
