@@ -37,6 +37,8 @@ RULES: dict[str, dict[str, str]] = {
     "speculation-void": {"lean": "stackStatus_void_iff", "check": "Train.round"},
     "bisect-holds-exactly-red": {"lean": "settle_outcome", "check": "Train.settle_red"},
     "bisect-gate-bound": {"lean": "bisection_gates_le", "check": "Train.settle_red"},
+    "maximal-family": {"lean": "bk_maximal", "check": "families"},
+    "left-out-names-partner": {"lean": "chosen_family_maximal", "check": "choose_families"},
 }
 
 

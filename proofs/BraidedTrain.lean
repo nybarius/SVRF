@@ -5,4 +5,5 @@ import BraidedTrain.Reland
 import BraidedTrain.Union
 import BraidedTrain.Stacking
 import BraidedTrain.Bisection
+import BraidedTrain.Families
 import BraidedTrain.Examples
