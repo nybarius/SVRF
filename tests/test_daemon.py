@@ -625,6 +625,14 @@ class WatchedPathRetry(unittest.TestCase):
         path.write_text('repo = "o/r"\n[gate]\ncommands = ["true"]\n[admission]\ncommand = "true"\nwatch = ["req.txt"]\n', encoding="utf-8")
         self.assertEqual(cfg.load(path).admission_watch, ["req.txt"])
 
+    def test_a_hold_is_read_again_when_its_base_branch_is_changed(self):
+        """A retarget (the base ref of the pull request changed) changes what the hold
+        depended on, although the head did not move."""
+        held = {"head": "a", "base_ref": "feature-parent"}
+        self.assertTrue(rules.base_ref_moved(held, {"headRefOid": "a", "baseRefName": "main"}))
+        self.assertFalse(rules.base_ref_moved(held, {"headRefOid": "a", "baseRefName": "feature-parent"}))
+        self.assertFalse(rules.base_ref_moved({"head": "a"}, {"headRefOid": "a", "baseRefName": "main"}))
+
 
 def _string_lists(path: Path):
     tree = ast.parse(path.read_text(encoding="utf-8"))
