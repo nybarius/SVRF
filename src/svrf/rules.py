@@ -136,6 +136,12 @@ def retry_due(held: dict, now: dict) -> bool:
     return (held.get("head"), held.get("watch_digest")) != (now.get("head"), now.get("watch_digest"))
 
 
+def base_ref_moved(held: dict | None, row: dict) -> bool:
+    """A held pull request whose base branch was changed (a retarget) is read again: the
+    base it was judged against is part of what the hold depended on."""
+    return bool(held) and held.get("base_ref") is not None and held.get("base_ref") != row.get("baseRefName")
+
+
 def held_retry(held: dict | None, head_sha: str, watch_digest: str | None = None) -> bool:
     """`retry_due` for a snapshot row. A pull request never held is always read. Without a
     fresh read of the watched paths, the head alone decides."""

@@ -164,6 +164,9 @@ class Daemon:
         for n in sorted(by_number):
             row = by_number[n]
             held = state["held"].get(str(n))
+            if rules.base_ref_moved(held, row):
+                state["held"].pop(str(n), None)
+                held = None
             decision, _ = rules.admission(row, held, self.watch_digest(held, row, base_now),
                                           carried=self._contained(base_sha, row), base=self.base,
                                           hold_label=self.hold_label)
@@ -370,6 +373,7 @@ class Daemon:
              extra: dict | None = None) -> None:
         n = int(row["number"])
         entry = {"head": row.get("headRefOid"), "head_ref": row.get("headRefName"),
+                 "base_ref": row.get("baseRefName"),
                  "title": row.get("title", ""), "reason": reason, "class": cls,
                  "failing": list(failing)[:24], "paths": list(paths), "at": summary["at"], **(extra or {})}
         state["held"][str(n)] = entry
