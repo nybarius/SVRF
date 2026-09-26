@@ -53,7 +53,7 @@ def build(config: Config, *, github=None, dry_run: bool = False, clock=None, sle
         extra["sleep"] = sleep
     return Daemon(git, github or RealGitHub(config.repo), gate, admission, state_dir=config.state_dir,
                   receipts=config.receipts, base=config.base, dry_run=dry_run, rate_floor=config.train.rate_floor,
-                  lock_path=config.lock, hold_label=config.hold_label, is_union=union, repair=config.repair,
+                  lock_path=config.lock, hold_label=config.hold_label, admission_watch=config.admission_watch, is_union=union, repair=config.repair,
                   # history.reland alone gates this: reland_class only ever returns a class
                   # from a `history:REFUSED:` residual (the built-in tests-first check,
                   # order != "off") or a `reland:REFUSED:` one an admission.command reports

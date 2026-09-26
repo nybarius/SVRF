@@ -240,6 +240,7 @@ Unknown keys are refused.
 | `history.reland` | `true` | re-land refused histories in order instead of holding them |
 | `history.tests`, `history.docs` | common globs | how paths are classified for the history check |
 | `admission.command` | `""` | extra admission check; exit 0 admits, 126/127 means "could not run" |
+| `admission.watch` | `[]` | paths every hold depends on (requirements, toolchain pins); a base change there rereads every hold |
 | `ui.pr_comments` | `true` | one living comment per pull request (see [docs/PR_SURFACE.md](docs/PR_SURFACE.md)) |
 | `ui.status_checks` | `true` | a `svrf` commit status on each candidate head |
 | `ui.dashboard_url` | `""` | optional: linked from the status as `target_url` |

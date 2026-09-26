@@ -607,6 +607,24 @@ class WatchedPathRetry(unittest.TestCase):
         d.tick()                                   # the base changed over 31's watch: read again
         self.assertEqual([h for h, _ in admission.calls].count("h31"), 2)
 
+    def test_a_held_head_is_read_again_when_the_base_changes_an_always_watched_path(self):
+        """The environment a verdict ran in (a requirements file, a toolchain pin) is part of
+        what every hold depended on, even when the pull request never touched it."""
+        repo = DaemonRepo([41, 42])
+        gh = DaemonGitHub(repo)
+        admission = Admission({"h41": {"verdict": "HELD", "residuals": ["check:x"], "changed": ["lane:41"]}})
+        d = daemon(repo, gh, FakeGate(repo), admission, self.tmp, admission_watch=["lane:42"])
+        d.tick()                                   # 41 held, 42 lands
+        self.assertEqual(held_numbers(self.tmp), [41])
+        d.tick()                                   # the base changed over the always-watched path
+        self.assertEqual([h for h, _ in admission.calls].count("h41"), 2)
+
+    def test_admission_watch_is_read_from_the_config(self):
+        from svrf import config as cfg
+        path = Path(self.tmp) / "svrf.toml"
+        path.write_text('repo = "o/r"\n[gate]\ncommands = ["true"]\n[admission]\ncommand = "true"\nwatch = ["req.txt"]\n', encoding="utf-8")
+        self.assertEqual(cfg.load(path).admission_watch, ["req.txt"])
+
 
 def _string_lists(path: Path):
     tree = ast.parse(path.read_text(encoding="utf-8"))

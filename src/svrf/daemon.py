@@ -58,7 +58,8 @@ class Daemon:
                  clock=time.time, sleep=time.sleep, train_options: dict | None = None, dry_run: bool = False,
                  rate_floor: int = 200, lock_path: Path | None = None, hold_label: str = "train:hold",
                  is_union: Callable[[str], bool] = lambda p: False, repair: bool = True, reland: bool = True,
-                 kind: Callable[[str], str] | None = None, history_verdict: Callable[[str, str], str] | None = None):
+                 kind: Callable[[str], str] | None = None, history_verdict: Callable[[str, str], str] | None = None,
+                 admission_watch: list[str] | None = None):
         self.git, self.gh, self.gate, self.admission = git, github, gate, admission
         self.state_dir = Path(state_dir).expanduser()
         self.receipts = Path(receipts).expanduser()
@@ -70,6 +71,8 @@ class Daemon:
         self.hold_label, self.is_union = hold_label, is_union
         self.repair_enabled, self.reland_enabled = repair, reland
         self.kind = kind or (lambda p: "code")
+        # Paths every hold depends on whatever it changed: the environment its verdict ran in.
+        self.admission_watch = list(admission_watch or [])
         self.history_verdict = history_verdict
 
     # ---- memory
@@ -285,10 +288,11 @@ class Daemon:
 
     def _watch(self, base: str | None, paths: list[str]) -> dict:
         digest = getattr(self.git, "watch_digest", None)
+        paths = sorted(set(paths) | set(self.admission_watch))
         if not paths or base is None or digest is None:
             return {}
         try:
-            return {"watch": sorted(set(paths)), "base_sha": base, "watch_digest": digest(base, sorted(set(paths)))}
+            return {"watch": paths, "base_sha": base, "watch_digest": digest(base, paths)}
         except ReadFailed:
             return {}
 
