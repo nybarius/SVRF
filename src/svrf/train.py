@@ -135,7 +135,20 @@ class Train:
                          "alerts": self.receipt["alerts"]}
                 if facts != self._projection_facts:
                     try:
-                        self.on_receipt(self.receipt, self.path, hashlib.sha256(raw).hexdigest())
+                        digest = hashlib.sha256(raw).hexdigest()
+                        # Progress keeps its mutable path. A received observation
+                        # keeps the exact inode produced by this atomic save;
+                        # later saves replace only the progress name. Preserve
+                        # the basename used by the existing history projection.
+                        observed = self.path.parent / "observations" / digest / self.path.name
+                        observed.parent.mkdir(parents=True, exist_ok=True)
+                        try:
+                            os.link(self.path, observed)
+                        except FileExistsError:
+                            pass
+                        if observed.read_bytes() != raw:
+                            raise OSError("RECEIPT_OBSERVATION_CHANGED")
+                        self.on_receipt(self.receipt, observed, digest)
                     except Exception as error:
                         # A failed observation transport cannot change an original gate or merge.
                         self.receipt["state_projection"] = {
