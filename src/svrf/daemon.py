@@ -770,11 +770,12 @@ class Daemon:
                     more = self._discover(requested, changed, state, summary, skip=set(self.inflight), seen=seen,
                                           refill=True)
                     more = self._order_candidates(more or [], slots, state, summary)
-                    # a declared head whose read failed this tick is not read again until the next tick lists: until
-                    # then no undeclared head is taken, so the declared lead the next tick instead of a whole backlog
+                    # An unbounded tick yields so a failed declared head can retry without
+                    # walking the whole backlog. A bounded tick already has a discovery
+                    # deadline: fill its free slots, retaining this head's seen/retry state.
                     declared = (summary.get("admission_priority") or {}).get("read") or []
                     unread = [n for n in declared if n in seen and n in summary["retry_later"]]
-                    if unread:
+                    if unread and deadline is None:
                         more = [r for r in more or [] if int(r["number"]) in declared]
                         summary["refill_stopped"] = {"declared_unread": unread}
                         if not more:
