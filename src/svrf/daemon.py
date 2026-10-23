@@ -334,11 +334,17 @@ class Daemon:
         # Only the built-in Admission takes the PR number (SVRF_PR); other callables keep (head, base).
         extra = (row["number"],) if isinstance(self.admission, Admission) and row.get("number") is not None else ()
         options = {"cancelled": cancelled} if cancelled is not None else {}
-        try:
+        def before_admission():
             if cancelled is not None and cancelled.is_set():
                 raise ReadFailed("ADMISSION_CANCELLED")
+            return False  # The guard's stop hook preserves the admission failure reason.
+
+        try:
+            before_admission()
             if self.memory is not None:
-                with self.memory.admit():
+                waiting = {"stop_requested": before_admission} if cancelled is not None else {}
+                with self.memory.admit(**waiting):
+                    before_admission()
                     return self.admission(head, base, *extra, **options), None
             return self.admission(head, base, *extra, **options), None
         except Exception as error:  # surfaced to the caller, which sorts ReadFailed from the rest
