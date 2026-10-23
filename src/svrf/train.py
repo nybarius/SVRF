@@ -72,10 +72,11 @@ class Train:
                  poll_seconds: float = 5, poll_tries: int = 36, max_rounds: int = 8, dry_run: bool = False,
                  comment: bool = True, is_union: Callable[[str], bool] = lambda p: False,
                  pr_comments: bool = True, status_checks: bool = True, dashboard_url: str = "",
-                 hold_label: str = "train:hold", tree_provider=None, on_receipt=None,
+                 hold_label: str = "train:hold", tree_provider=None, on_receipt=None, landing_decision=None,
                  stop_requested: Callable[[], bool] = lambda: False):
         self.git, self.gh, self.gate = git, github, gate
         self.on_receipt, self._projection_facts = on_receipt, None
+        self.landing_decision = landing_decision
         self.event_owner = process_identity(os.getpid())
         self.jobs, self.memory = max(1, jobs), memory
         self.family_cap = max(1, family_cap)
@@ -140,14 +141,7 @@ class Train:
                         # keeps the exact inode produced by this atomic save;
                         # later saves replace only the progress name. Preserve
                         # the basename used by the existing history projection.
-                        observed = self.path.parent / "observations" / digest / self.path.name
-                        observed.parent.mkdir(parents=True, exist_ok=True)
-                        try:
-                            os.link(self.path, observed)
-                        except FileExistsError:
-                            pass
-                        if observed.read_bytes() != raw:
-                            raise OSError("RECEIPT_OBSERVATION_CHANGED")
+                        observed = self._retain_receipt(raw)
                         self.on_receipt(self.receipt, observed, digest)
                     except Exception as error:
                         # A failed observation transport cannot change an original gate or merge.
@@ -161,6 +155,65 @@ class Train:
                             pass
                     else:
                         self._projection_facts = deepcopy(facts)
+
+    def _retain_receipt(self, raw: bytes) -> Path:
+        digest = hashlib.sha256(raw).hexdigest()
+        observed = self.path.parent / "observations" / digest / self.path.name
+        observed.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            os.link(self.path, observed)
+        except FileExistsError:
+            pass
+        if observed.read_bytes() != raw:
+            raise OSError("RECEIPT_OBSERVATION_CHANGED")
+        return observed
+
+    def _receive_landing_decision(self, number: int, current: str, prepared, family: dict):
+        """Consume the configured original receiver, preserving its Meton observation.
+
+        The receiver owns rule evaluation and source/checker qualification. SVRF
+        binds that return to this original gate and exact proposed publication;
+        it never supplies a replacement rule when a configured read is absent.
+        """
+        if self.landing_decision is None:
+            return None
+        try:
+            raw = self.path.read_bytes()
+            path = self._retain_receipt(raw)
+            saved = json.loads(raw)
+            gate = saved["gates"][family["gate"]]
+            source = {"pr": number, "head": self.rows[number]["head_sha"], "base": current,
+                      "prepared": prepared.commit, "tree": prepared.tree,
+                      "family": family["id"], "family_tree": family["tree"],
+                      "gate_index": family["gate"], "gate": gate,
+                      "receipt": {"path": str(path), "sha256": hashlib.sha256(raw).hexdigest()}}
+            if (gate != self.receipt["gates"][family["gate"]]
+                    or gate.get("green") is not True or gate.get("read_failure")):
+                raise ReadFailed("METON_GATE_SOURCE_CHANGED")
+            result = self.landing_decision(deepcopy(source))
+            if (not isinstance(result, dict) or result.get("status") != "OBSERVED"
+                    or result.get("source") != source):
+                raise ReadFailed("METON_DECISION_SOURCE_UNOBSERVED")
+            meton = result.get("meton")
+            if (not isinstance(meton, dict)
+                    or not isinstance(meton.get("task"), str) or not meton["task"]
+                    or not isinstance(meton.get("observation"), str)
+                    or not meton["observation"].startswith("sha256:")
+                    or len(meton["observation"]) != 71):
+                raise ReadFailed("METON_OBSERVATION_UNOBSERVED")
+            # Keep nonlanding decisions too. Missing/changed evidence is a next
+            # read for this owner, never a failed original gate or a merge.
+            if len(json.dumps(result, allow_nan=False).encode()) > 1024 * 1024:
+                raise ReadFailed("METON_DECISION_BOUND")
+            index = len(self.receipt.setdefault("decisions", []))
+            self._add("decisions", deepcopy(result))
+            if result.get("action") != "act_land":
+                raise ReadFailed("METON_LANDING_DEFERRED")
+            return index
+        except ReadFailed:
+            raise
+        except Exception as error:
+            raise ReadFailed("METON_DECISION_UNOBSERVED:" + type(error).__name__) from error
 
     def _event(self, kind: str) -> dict:
         return {"kind": kind, "wall": self.clock(), "monotonic": time.monotonic(),
@@ -476,6 +529,18 @@ class Train:
                                planned=planned["tree"], prepared=prepared.tree)
                     self._stop_family(family, index, "REQUEUED")
                     return False, rest
+                decision_index = self._receive_landing_decision(n, current, prepared, family)
+                if decision_index is not None:
+                    check_stop(self.stop_requested)
+                    # The independent receiving call can outlive a source change.
+                    # Reobserve the same publication immediately before effects.
+                    if self.git.main_sha() != current:
+                        raise ReadFailed("METON_DECISION_BASE_MOVED")
+                    current_pull = self.call(self.gh.pull, n)
+                    if self._publication_withheld(current_pull, family, index):
+                        return False, rest[1:]
+                    if current_pull.get("head_sha") != row["head_sha"]:
+                        raise ReadFailed("METON_DECISION_HEAD_MOVED")
                 if prepared.commit != row["head_sha"]:
                     self.git.push_branch(prepared.commit, row["head_ref"])
                 pull = self._await_mergeable(n, prepared.commit)
@@ -494,6 +559,8 @@ class Train:
                          "head": prepared.commit, "merge": merged, "parents": [],
                          "gated_tree": planned["tree"], "observed_tree": None, "identity": None,
                          "at": self.clock(), **record, "acknowledged_event": acknowledged_event}
+            if decision_index is not None:
+                merge_row["decision"] = decision_index
             self._add("merges", merge_row)
             observed, parents, unread = self._read_landed(merged)
             merge_row["at"] = self.clock()
