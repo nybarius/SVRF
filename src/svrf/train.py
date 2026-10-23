@@ -65,6 +65,13 @@ SCHEMA = "svrf.receipt/1"
 _receipt_serial = itertools.count()
 
 
+class _LandingRevisionRefused(ReadFailed):
+    """A received native revision refusal before this prepared publication."""
+    def __init__(self, occurrence: int):
+        super().__init__("METON_DECISION_REVISION_CONFLICT")
+        self.occurrence = occurrence
+
+
 class Train:
     def __init__(self, git, github, gate, *, receipts: Path, jobs: int = 1, family_size: int | str = 8,
                  family_cap: int = 8,
@@ -168,6 +175,79 @@ class Train:
             raise OSError("RECEIPT_OBSERVATION_CHANGED")
         return observed
 
+    def _retained_landing_revision_refusal(self, receiver, source, previous_calls, error):
+        """Receive one original, explicit native revision refusal; never infer one."""
+        try:
+            if type(error) is not ValueError or str(error) != "REVISION_CONFLICT":
+                return None
+            current_calls = getattr(receiver, "calls", None)
+            if current_calls is previous_calls or not isinstance(current_calls, list) or not current_calls:
+                return None
+            calls = deepcopy(current_calls)
+            profile = deepcopy(receiver.profile)
+            if not isinstance(source, dict) or not isinstance(profile, dict):
+                return None
+            runtime = profile.get("host_binary_sha256")
+            project = profile.get("project")
+            if (not isinstance(runtime, str) or not runtime.startswith("sha256:")
+                    or len(runtime) != 71 or not isinstance(project, str) or not project):
+                return None
+            for index, call in enumerate(calls):
+                if not isinstance(call, dict) or call.get("read_failure"):
+                    return None
+                result = call.get("result")
+                if (not isinstance(result, dict) or result.get("schema") != "meton.bridge-return/1"
+                        or result.get("operation") != call.get("operation")
+                        or result.get("read_failure")
+                        or result.get("runtime", {}).get("executable", {}).get("sha256") != runtime):
+                    return None
+                if any(key in result and result[key] is not False
+                       for key in ("effect_unknown", "outcome_unknown")):
+                    return None
+                if index == len(calls) - 1:
+                    if (call.get("operation") not in ("project/continue", "project/evaluate-nymic")
+                            or result.get("effect_class") != "EXECUTE"
+                            or result.get("status") != "REFUSED" or result.get("http_status") != 409
+                            or result.get("response") != {"error": "REVISION_CONFLICT"}
+                            or result.get("retry") is not False):
+                        return None
+                    continue
+                if result.get("status") != "COMPLETED" or result.get("http_status") != 200:
+                    return None
+                primary = result.get("response")
+                # The receiver distinguishes committed operation results from
+                # secondary delivery. Keep the latter in the original object.
+                if isinstance(primary, dict) and "result" in primary and "organism_publication" in primary:
+                    primary = primary["result"]
+                if (not isinstance(primary, dict) or primary.get("error") or primary.get("read_failure")
+                        or primary.get("status") in ("UNKNOWN", "UNOBSERVED", "OUTCOME_UNKNOWN")
+                        or primary.get("outcome") in ("UNKNOWN", "UNOBSERVED", "OUTCOME_UNKNOWN")
+                        or any(key in primary and primary[key] is not False
+                               for key in ("effect_unknown", "outcome_unknown"))):
+                    return None
+                if index == 0 and (call.get("operation") != "project/status"
+                                   or primary.get("root") != project
+                                   or primary.get("effect_unknown") is not False):
+                    return None
+            if len(calls) < 2:
+                return None
+            packet = {"schema": "institutional.train-meton-acting-receipt/1",
+                      "status": "UNOBSERVED", "source": source, "profile": profile,
+                      "read_failure": str(error), "calls": calls}
+            encoded = json.dumps(packet, sort_keys=True, separators=(",", ":"), allow_nan=False).encode()
+            if len(encoded) > 1024 * 1024:
+                return None
+            digest = hashlib.sha256(encoded).hexdigest()
+            path = Path(receiver.store.object_path(digest))
+            # One bounded read of the original CAS object; no history scan,
+            # new receipt production, or duplicate checker invocation.
+            with path.open("rb") as original:
+                if original.read(len(encoded) + 1) != encoded:
+                    return None
+            return {"path": str(path), "sha256": "sha256:" + digest}
+        except Exception:
+            return None
+
     def _receive_landing_decision(self, number: int, current: str, prepared, family: dict):
         """Consume the configured original receiver, preserving its Meton observation.
 
@@ -175,9 +255,12 @@ class Train:
         binds that return to this original gate and exact proposed publication;
         it never supplies a replacement rule when a configured read is absent.
         """
-        if self.landing_decision is None:
+        receiver = self.landing_decision
+        if receiver is None:
             return None
+        source, previous_calls = None, None
         try:
+            previous_calls = getattr(receiver, "calls", None)
             raw = self.path.read_bytes()
             path = self._retain_receipt(raw)
             saved = json.loads(raw)
@@ -190,7 +273,7 @@ class Train:
             if (gate != self.receipt["gates"][family["gate"]]
                     or gate.get("green") is not True or gate.get("read_failure")):
                 raise ReadFailed("METON_GATE_SOURCE_CHANGED")
-            result = self.landing_decision(deepcopy(source))
+            result = receiver(deepcopy(source))
             if (not isinstance(result, dict) or result.get("status") != "OBSERVED"
                     or result.get("source") != source):
                 raise ReadFailed("METON_DECISION_SOURCE_UNOBSERVED")
@@ -213,6 +296,12 @@ class Train:
         except ReadFailed:
             raise
         except Exception as error:
+            original = self._retained_landing_revision_refusal(receiver, source, previous_calls, error)
+            if original is not None:
+                occurrence = len(self.receipt.setdefault("decision_refusals", []))
+                self._add("decision_refusals", {"source": deepcopy(source), "original": original,
+                                                "read_failure": str(error)})
+                raise _LandingRevisionRefused(occurrence) from error
             raise ReadFailed("METON_DECISION_UNOBSERVED:" + type(error).__name__) from error
 
     def _event(self, kind: str) -> dict:
@@ -529,7 +618,28 @@ class Train:
                                planned=planned["tree"], prepared=prepared.tree)
                     self._stop_family(family, index, "REQUEUED")
                     return False, rest
-                decision_index = self._receive_landing_decision(n, current, prepared, family)
+                # One fresh decision acquisition may continue this same checked
+                # candidate after an original, explicitly before-effects refusal.
+                for decision_attempt in range(2):
+                    if self.landing_decision is not None:
+                        check_stop(self.stop_requested)
+                    try:
+                        decision_index = self._receive_landing_decision(n, current, prepared, family)
+                        break
+                    except _LandingRevisionRefused:
+                        if decision_attempt:
+                            raise
+                        check_stop(self.stop_requested)
+                        if self.git.main_sha() != current:
+                            raise ReadFailed("METON_DECISION_BASE_MOVED")
+                        retry_pull = self.call(self.gh.pull, n)
+                        if retry_pull.get("state") != "open":
+                            raise ReadFailed("METON_DECISION_PR_NOT_OPEN")
+                        if self._publication_withheld(retry_pull, family, index):
+                            return False, rest[1:]
+                        if retry_pull.get("head_sha") != row["head_sha"]:
+                            raise ReadFailed("METON_DECISION_HEAD_MOVED")
+                        check_stop(self.stop_requested)
                 if decision_index is not None:
                     check_stop(self.stop_requested)
                     # The independent receiving call can outlive a source change.
@@ -537,10 +647,13 @@ class Train:
                     if self.git.main_sha() != current:
                         raise ReadFailed("METON_DECISION_BASE_MOVED")
                     current_pull = self.call(self.gh.pull, n)
+                    if current_pull.get("state") != "open":
+                        raise ReadFailed("METON_DECISION_PR_NOT_OPEN")
                     if self._publication_withheld(current_pull, family, index):
                         return False, rest[1:]
                     if current_pull.get("head_sha") != row["head_sha"]:
                         raise ReadFailed("METON_DECISION_HEAD_MOVED")
+                    check_stop(self.stop_requested)
                 if prepared.commit != row["head_sha"]:
                     self.git.push_branch(prepared.commit, row["head_ref"])
                 pull = self._await_mergeable(n, prepared.commit)
