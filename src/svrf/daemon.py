@@ -934,7 +934,7 @@ class Daemon:
             # hold without that basis has an unobserved read and is checked once.
             current = self._admission_binding(source_identity(
                 self.admission, int(row["number"]), row.get("headRefOid"), held.get("base_sha")))
-            if current != held.get("admission_source") or current["source_status"] != "OBSERVED":
+            if current != held.get("admission_source"):
                 return (f"{held.get('watch_digest')}:admission-source:"
                         f"{current['command_fingerprint']}:{current['environment_fingerprint']}:"
                         f"{current['source_status']}")
