@@ -1,4 +1,4 @@
-"""Behavioral controls for fresh native decisions on one original checked candidate."""
+"""Behavioral controls for fresh receiver decisions on one original checked candidate."""
 from copy import deepcopy
 import hashlib
 import json
@@ -9,11 +9,13 @@ from types import SimpleNamespace
 import unittest
 
 from fakes import Clock, FakeGate, FakeGitHub, FakeRepo
-from svrf.train import Train
+from svrf.errors import ReadFailed
+from svrf.train import Train, _LandingRevisionRefused
+from unittest.mock import patch
 
 
 def canonical(value):
-    return json.dumps(value, sort_keys=True, separators=(",", ":"), allow_nan=False).encode()
+    return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False).encode()
 
 
 class Store:
@@ -33,29 +35,16 @@ class Store:
 
 
 class Receiver:
+    """An opaque callback: Train must consume only its returned contract."""
     def __init__(self, root, outcomes=("refuse", "pass"), mutation=None, after=None):
-        self.profile = {"host_binary_sha256": "sha256:" + "a" * 64,
-                        "project": "/native/pröject"}
         self.store = Store(root)
-        self.calls = []
         self.outcomes = outcomes
         self.mutation = mutation
         self.after = after
         self.seen = []
         self.originals = []
 
-    def envelope(self, operation, response, status="COMPLETED", http=200):
-        return {"operation": operation, "consumed": [],
-                "result": {"schema": "meton.bridge-return/1", "operation": operation,
-                           "effect_class": "EXECUTE" if operation != "project/status" else "OBSERVE",
-                           "status": status, "http_status": http, "retry": False,
-                           "runtime": {"executable": {"path": "/native/host",
-                                      "sha256": self.profile["host_binary_sha256"]}},
-                           "response": response}}
-
     def __call__(self, source):
-        prior_calls = self.calls
-        self.calls = []
         self.seen.append(deepcopy(source))
         step = len(self.seen) - 1
         outcome = self.outcomes[min(step, len(self.outcomes) - 1)]
@@ -73,34 +62,41 @@ class Receiver:
             return result
         if outcome == "bare":
             raise ValueError("REVISION_CONFLICT")
-        self.calls = [
-            self.envelope("project/status", {"root": self.profile["project"], "effect_unknown": False}),
-            self.envelope("file", {"result": {"revision": "fresh"},
-                                  "organism_publication": {"status": "UNOBSERVED",
-                                                          "read_failure": "PRIORITY_OFFER_UNOBSERVED"}}),
-            self.envelope("project/evaluate-nymic", {"error": "REVISION_CONFLICT"},
-                          status="REFUSED", http=409),
-        ]
-        if outcome == "stale_list":
-            prior_calls[:] = self.calls
-            self.calls = prior_calls
+        if outcome == "read_failed":
+            raise ReadFailed("REVISION_CONFLICT")
+        if outcome == "internal_exception":
+            raise _LandingRevisionRefused(0)
+        packet = {"message": "révision changed", "source": deepcopy(source),
+                  "secondary": [{"status": "UNOBSERVED", "detail": "notification unavailable"}]}
+        path, digest, raw = self.store.add(packet)
+        self.originals.append({"path": path, "sha256": digest, "raw": raw, "source": deepcopy(source)})
+        result = {"schema": "svrf.landing-refusal/v1", "status": "REFUSED_BEFORE_EFFECTS",
+                  "reason": "REVISION_CONFLICT", "source": deepcopy(source),
+                  "original": {"path": str(path), "sha256": "sha256:" + digest}}
+        if outcome == "missing":
+            path.unlink()
+        elif outcome == "corrupt":
+            path.write_bytes(raw + b" ")
+        elif outcome == "oversized":
+            raw = b"x" * (1024 * 1024 + 1)
+            path.write_bytes(raw)
+            result["original"]["sha256"] = "sha256:" + hashlib.sha256(raw).hexdigest()
+        elif outcome == "directory":
+            path.unlink()
+            path.mkdir()
+        elif outcome == "fifo":
+            path.unlink()
+            os.mkfifo(path)
+        elif outcome == "symlink":
+            target = path.with_suffix(".original")
+            path.rename(target)
+            path.symlink_to(target)
         if self.mutation:
-            self.mutation(self)
-        packet = {"schema": "institutional.train-meton-acting-receipt/1",
-                  "status": "UNOBSERVED", "source": deepcopy(source), "profile": deepcopy(self.profile),
-                  "read_failure": "REVISION_CONFLICT", "calls": deepcopy(self.calls)}
-        if outcome == "stale_source":
-            packet["source"]["head"] = "another-head"
-        if outcome == "profile_mismatch":
-            packet["profile"]["project"] = "/another/project"
-        if outcome != "missing":
-            path, digest, raw = self.store.add(packet)
-            self.originals.append({"path": path, "sha256": digest, "raw": raw, "source": deepcopy(source)})
-            if outcome == "corrupt":
-                path.write_bytes(raw + b" ")
+            self.mutation(self, result)
         if self.after:
             self.after(self, step, source)
-        raise ValueError("REVISION_CONFLICT")
+        return result
+
 
 
 class RevisionContinuation(unittest.TestCase):
@@ -131,7 +127,7 @@ class RevisionContinuation(unittest.TestCase):
         self.assertEqual(case.gh.merged, [11])
         self.assertEqual(len(case.repo.pushes), 1)
         self.assertEqual(len(case.receiver.seen), 2)
-        self.assertEqual(len(case.gate.trees), 1, "a native revision refusal reopened an unchanged gate")
+        self.assertEqual(len(case.gate.trees), 1, "a receiver revision refusal reopened an unchanged gate")
         self.assertEqual(len(receipt["gates"]), 1)
         first, second = case.receiver.seen
         for key in ("pr", "head", "base", "prepared", "tree", "family", "family_tree", "gate_index", "gate"):
@@ -145,11 +141,11 @@ class RevisionContinuation(unittest.TestCase):
                                              "sha256": "sha256:" + original["sha256"]})
         self.assertEqual(original["path"].read_bytes(), original["raw"])
         self.assertEqual(hashlib.sha256(original["raw"]).hexdigest(), original["sha256"])
-        self.assertEqual(json.loads(original["raw"])["calls"][1]["result"]["response"]
-                         ["organism_publication"]["status"], "UNOBSERVED")
+        self.assertEqual(json.loads(original["raw"])["secondary"][0]["status"], "UNOBSERVED")
+        self.assertIn("révision".encode(), original["raw"])
 
-    def test_missing_corrupt_or_stale_custody_never_continues(self):
-        for outcome in ("bare", "missing", "corrupt", "stale_source", "profile_mismatch", "stale_list"):
+    def test_missing_changed_oversized_or_nonregular_original_never_continues(self):
+        for outcome in ("missing", "corrupt", "oversized", "directory", "fifo", "symlink"):
             with self.subTest(outcome=outcome):
                 case = self.make((outcome, "pass"))
                 receipt = case.train.run([11])
@@ -158,25 +154,42 @@ class RevisionContinuation(unittest.TestCase):
                 self.assertTrue(receipt["gates"][0]["green"])
                 self.assertFalse(receipt.get("decision_refusals"))
 
-    def test_unknown_or_different_native_boundaries_never_continue(self):
+    def test_callback_exceptions_never_authorize_continuation(self):
+        for outcome in ("bare", "read_failed", "internal_exception"):
+            with self.subTest(outcome=outcome):
+                case = self.make((outcome, "pass"))
+                receipt = case.train.run([11])
+                self.assertEqual(len(case.receiver.seen), 1)
+                self.assert_no_effects(case)
+                self.assertFalse(receipt.get("decision_refusals"))
+                expected_reason = {
+                    "bare": "METON_DECISION_UNOBSERVED:ValueError",
+                    "read_failed": "REVISION_CONFLICT",
+                    "internal_exception": "METON_DECISION_UNOBSERVED:_LandingRevisionRefused",
+                }[outcome]
+                self.assertTrue(any(row["reason"] == expected_reason
+                                    for row in receipt["retry_later"]))
+
+
+    def test_only_exact_source_bound_refusal_contract_continues(self):
         mutations = {
-            "bridge_unknown": lambda r: r.calls[0]["result"].update(status="UNKNOWN"),
-            "bridge_read_failure": lambda r: r.calls[0]["result"].update(read_failure="LOST_RESPONSE"),
-            "call_read_failure": lambda r: r.calls[0].update(read_failure="LOST_RESPONSE"),
-            "primary_unknown": lambda r: r.calls[0]["result"]["response"].update(status="UNOBSERVED"),
-            "primary_failure": lambda r: r.calls[1]["result"]["response"]["result"].update(read_failure="MISSING"),
-            "primary_error": lambda r: r.calls[1]["result"]["response"]["result"].update(error="FAILED"),
-            "effect_unknown": lambda r: r.calls[0]["result"]["response"].update(effect_unknown=True),
-            "wrong_project": lambda r: r.calls[0]["result"]["response"].update(root="/other"),
-            "final_unknown": lambda r: r.calls[-1]["result"].update(status="UNKNOWN"),
-            "final_transport": lambda r: r.calls[-1].update(read_failure="OUTCOME_UNKNOWN"),
-            "final_other_error": lambda r: r.calls[-1]["result"].update(response={"error": "OTHER_CONFLICT"}),
-            "final_wrong_http": lambda r: r.calls[-1]["result"].update(http_status=503),
-            "final_wrong_schema": lambda r: r.calls[-1]["result"].update(schema="other/1"),
-            "final_wrong_operation": lambda r: r.calls[-1]["result"].update(operation="merge"),
-            "final_wrong_runtime": lambda r: r.calls[-1]["result"]["runtime"]["executable"].update(sha256="sha256:" + "f"*64),
-            "final_retry_true": lambda r: r.calls[-1]["result"].update(retry=True),
-            "final_effect_unknown": lambda r: r.calls[-1]["result"].update(outcome_unknown=True),
+            "schema": lambda r, value: value.update(schema="unknown/1"),
+            "status": lambda r, value: value.update(status="OUTCOME_UNKNOWN"),
+            "reason": lambda r, value: value.update(reason="OTHER_CONFLICT"),
+            "extra_unknown": lambda r, value: value.update(outcome_unknown=True),
+            "source_head": lambda r, value: value["source"].update(head="another-head"),
+            "source_receipt": lambda r, value: value["source"]["receipt"].update(sha256="0" * 64),
+            "missing_original": lambda r, value: value.pop("original"),
+            "original_type": lambda r, value: value.update(original=[]),
+            "extra_reference": lambda r, value: value["original"].update(retry=True),
+            "relative_path": lambda r, value: value["original"].update(path="relative.json"),
+            "path_type": lambda r, value: value["original"].update(path=3),
+            "digest_type": lambda r, value: value["original"].update(sha256=None),
+            "digest_length": lambda r, value: value["original"].update(sha256="sha256:" + "a" * 63),
+            "digest_uppercase": lambda r, value: value["original"].update(sha256="sha256:" + "A" * 64),
+            "digest_nonhex": lambda r, value: value["original"].update(sha256="sha256:" + "g" * 64),
+            "digest_wrong": lambda r, value: value["original"].update(sha256="sha256:" + "0" * 64),
+            "oversized_return": lambda r, value: value["original"].update(path="/" + "x" * (1024 * 1024)),
         }
         for name, mutation in mutations.items():
             with self.subTest(boundary=name):
@@ -186,6 +199,28 @@ class RevisionContinuation(unittest.TestCase):
                 self.assert_no_effects(case)
                 self.assertTrue(receipt["gates"][0]["green"])
                 self.assertFalse(receipt.get("decision_refusals"))
+
+    def test_reference_mutation_does_not_replace_verified_identity(self):
+        case = self.make()
+        source = {"value": "exact"}
+        result = case.receiver(source)
+        expected = deepcopy(result["original"])
+        real_open = os.open
+        def mutate_reference(name, flags):
+            result["original"].update(path="/changed-original.json", sha256="sha256:" + "f" * 64)
+            return real_open(name, flags)
+        with patch("svrf.train.os.open", side_effect=mutate_reference):
+            self.assertEqual(case.train._retained_landing_revision_refusal(result, source), expected)
+
+    def test_unreadable_original_does_not_authorize_continuation(self):
+        case = self.make()
+        source = {"value": "exact"}
+        result = case.receiver(source)
+        with patch("svrf.train.os.open", side_effect=PermissionError("unreadable")):
+            self.assertIsNone(case.train._retained_landing_revision_refusal(result, source))
+
+
+
 
     def test_fresh_base_head_closed_or_held_state_stops_continuation(self):
         for kind in ("base", "head", "closed", "unobserved_state", "held", "stopped"):
@@ -282,27 +317,7 @@ class RevisionContinuation(unittest.TestCase):
                 self.assert_no_effects(case)
                 self.assertEqual(len(receipt["decision_refusals"]), 1)
 
-    def test_unchanged_real_f1_refusal_qualifies_without_erasing_secondary_failures(self):
-        path = Path(os.environ.get("ORIGINAL_F1", str(Path(__file__).parent / "fixtures/meton_revision_refusal.json")))
-        raw = path.read_bytes()
-        self.assertEqual(hashlib.sha256(raw).hexdigest(),
-                         "6c3c2760c61a36ddc1e4b219ff61c4d8489cdcbb7a0b9ad7fbb1ac7451793df7")
-        original = json.loads(raw)
-        case = self.make()
-        receiver = SimpleNamespace(profile=deepcopy(original["profile"]),
-                                   calls=deepcopy(original["calls"]),
-                                   store=Store(case.root / "real-original"))
-        stored_path, digest, stored_raw = receiver.store.add(original)
-        self.assertEqual(stored_raw, raw)
-        accepted = case.train._retained_landing_revision_refusal(
-            receiver, original["source"], [], ValueError("REVISION_CONFLICT"))
-        self.assertEqual(accepted, {"path": str(stored_path), "sha256": "sha256:" + digest})
-        self.assertEqual(stored_path.read_bytes(), raw)
-        secondary = [c["result"]["response"]["organism_publication"]
-                     for c in original["calls"]
-                     if "organism_publication" in c.get("result", {}).get("response", {})]
-        self.assertEqual(len(secondary), 4)
-        self.assertTrue(all(x["status"] == "UNOBSERVED" for x in secondary))
+
 
     def test_multistep_family_retains_its_distinct_prefix_tree(self):
         case = self.make()
