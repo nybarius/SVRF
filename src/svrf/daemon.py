@@ -702,6 +702,15 @@ class Daemon:
                 for n, item in self.inflight.items()}
         seen.update({int(r["number"]): r.get("headRefOid") for r in candidates})
         known: dict[int, dict] = {}
+
+        def land_batch(batch: list[int]) -> None:
+            if batch:
+                if summary["stopped"]:
+                    for n in batch:
+                        self._retry(summary, n, "TRAIN_STOPPED")
+                else:
+                    self.land(batch, [known[n] for n in batch], {n: known[n] for n in batch}, state, summary)
+
         deadline = started + self.tick_seconds if self.tick_seconds else None
         try:
             self._submit(candidates, base)
@@ -767,6 +776,11 @@ class Daemon:
                     else:
                         self._retry(summary, n, cls or "ADMISSION_UNREAD")
                 summary["admitted"] = sorted(set(summary["admitted"]) | set(admitted))
+                # Ready gates share admission reservations when a guard is configured.
+                # Let them land before fresh reads can claim the released capacity.
+                land_before_refill = self.memory is not None
+                if land_before_refill:
+                    land_batch(batch)
                 # a slot freed by a finished read is refilled from the current snapshot's queue
                 # (only when the round was cut short: the list is read again when it left candidates unread)
                 if (summary.get("deferred") and slots - len(self.inflight) > 0 and not summary["stopped"]
@@ -794,14 +808,9 @@ class Daemon:
                         if more:
                             seen.update({int(r["number"]): r.get("headRefOid") for r in more})
                             self._submit(more, more_base)
-                # Refill free admission slots before the synchronous final gate.
-                # The single landing owner still gates each batch on current main.
-                if batch:
-                    if summary["stopped"]:
-                        for n in batch:
-                            self._retry(summary, n, "TRAIN_STOPPED")
-                    else:
-                        self.land(batch, [known[n] for n in batch], {n: known[n] for n in batch}, state, summary)
+                # Without a shared guard, retain admission overlap during the gate.
+                if not land_before_refill:
+                    land_batch(batch)
                 self.save(state, summary)
         finally:
             if self._stop_requested:
