@@ -766,9 +766,12 @@ class Daemon:
                 elif decision == "RELAND":
                     self.reland(row, cls, state, summary)
                 elif decision in ("HOLD", "REPAIR"):
+                    watch = self._watch(rbase, self._consumed_paths(value),
+                                        payloads=self._consumed_payloads(value))
+                    if isinstance(rbase, str) and value.get("native_conflict_base") == rbase:
+                        watch.update(base_sha=rbase, native_conflict_base=rbase)
                     self.hold(row, "ADMISSION_HELD", state, summary, failing=residuals,
-                              extra=self._watch(rbase, self._consumed_paths(value),
-                                                payloads=self._consumed_payloads(value)))
+                              extra=watch)
                 else:
                     self._retry(summary, n, cls or "ADMISSION_UNREAD")
             summary["admitted"] = sorted(set(summary["admitted"]) | set(admitted))
@@ -908,8 +911,21 @@ class Daemon:
         """The base branch's content over a held head's watched paths now, or None when it
         cannot be read or the head moved anyway. The base is read once per round and
         fetched only when it moved since the hold."""
-        if (not held or not (held.get("watch") or held.get("payload_watch"))
-                or held.get("head") != row.get("headRefOid")):
+        if not held or held.get("head") != row.get("headRefOid"):
+            return None
+        if (isinstance(held.get("native_conflict_base"), str)
+                and held["native_conflict_base"] == held.get("base_sha")):
+            # A native conflict is bound to the complete base commit. Path or
+            # tree equality cannot stand in for a fresh merge on a new base.
+            try:
+                if base_now["sha"] is None:
+                    base_now["sha"] = self.git.main_sha()
+            except ReadFailed:
+                return None
+            if base_now["sha"] == held["native_conflict_base"]:
+                return held.get("watch_digest")
+            return f"{held.get('watch_digest')}:native-conflict-base:{base_now['sha']}"
+        if not (held.get("watch") or held.get("payload_watch")):
             return None
         digest = getattr(self.git, "watch_digest", None)
         if digest is None:
