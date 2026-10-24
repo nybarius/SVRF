@@ -1007,7 +1007,8 @@ class Daemon:
         try:
             watch["watch_digest"] = digest(base, paths,
                                            **({"payloads": payloads} if payloads else {}))
-        except ReadFailed:
+        except ReadFailed as failure:
+            watch["watch_read_failure"] = failure.reason
             return watch  # Keep the basis for a later read; no digest was observed.
         return watch
 
