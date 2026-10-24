@@ -743,7 +743,8 @@ class Daemon:
                         self._retry(summary, n, "STOP_REQUESTED" if self._stop_requested else "TRAIN_STOPPED")
                     else:
                         self._finish_reland(item["reland"], row["headRefOid"], rbase,
-                                            value, failure, state, summary, revalidate=True)
+                                            value, failure, state, summary, revalidate=True,
+                                            admission_source=item["attempt"].snapshot())
                     continue
                 if failure is not None:
                     if isinstance(failure, ReadFailed):
@@ -768,6 +769,7 @@ class Daemon:
                 elif decision in ("HOLD", "REPAIR"):
                     watch = self._watch(rbase, self._consumed_paths(value),
                                         payloads=self._consumed_payloads(value))
+                    watch["admission_source"] = self._admission_binding(item["attempt"].snapshot())
                     if isinstance(rbase, str) and value.get("native_conflict_base") == rbase:
                         watch.update(base_sha=rbase, native_conflict_base=rbase)
                     self.hold(row, "ADMISSION_HELD", state, summary, failing=residuals,
@@ -925,6 +927,17 @@ class Daemon:
             if base_now["sha"] == held["native_conflict_base"]:
                 return held.get("watch_digest")
             return f"{held.get('watch_digest')}:native-conflict-base:{base_now['sha']}"
+        if held.get("reason") in ("ADMISSION_HELD", "RELAND_ADMISSION_HELD"):
+            # An original negative verdict consumes its checker configuration and
+            # environment too. Reuse the attempt owner's identities, not a new
+            # scheduler or a reset of the retained failed occurrence. A legacy
+            # hold without that basis has an unobserved read and is checked once.
+            current = self._admission_binding(source_identity(
+                self.admission, int(row["number"]), row.get("headRefOid"), held.get("base_sha")))
+            if current != held.get("admission_source") or current["source_status"] != "OBSERVED":
+                return (f"{held.get('watch_digest')}:admission-source:"
+                        f"{current['command_fingerprint']}:{current['environment_fingerprint']}:"
+                        f"{current['source_status']}")
         if not (held.get("watch") or held.get("payload_watch")):
             return None
         digest = getattr(self.git, "watch_digest", None)
@@ -952,6 +965,11 @@ class Daemon:
         if value == held.get("watch_digest"):
             held["base_sha"] = base_now["sha"]      # the base moved elsewhere: nothing reopens
         return value
+
+    @staticmethod
+    def _admission_binding(source: dict) -> dict:
+        return {key: source.get(key) for key in (
+            "command_fingerprint", "environment_fingerprint", "source_status")}
 
     @staticmethod
     def _consumed_paths(value: dict) -> list[str]:
@@ -1231,8 +1249,10 @@ class Daemon:
             self._submit([candidate], base_sha)
             self.inflight[n]["reland"] = original
             return
+        admission_source = source_identity(self.admission, n, final, base_sha, original["inputs"])
         value, error = self._read_admission(candidate, base_sha)
-        self._finish_reland(original, final, base_sha, value, error, state, summary)
+        self._finish_reland(original, final, base_sha, value, error, state, summary,
+                            admission_source=admission_source)
 
     def _reland_source(self, row: dict) -> str | None:
         """A delayed successor is publishable only for the still-ready original source."""
@@ -1260,7 +1280,8 @@ class Daemon:
         return None
 
     def _finish_reland(self, original: dict, final: str, base_sha: str, value, error,
-                       state: dict, summary: dict, *, revalidate: bool = False) -> None:
+                       state: dict, summary: dict, *, revalidate: bool = False,
+                       admission_source: dict | None = None) -> None:
         """Receive the original reader's result before any successor publication."""
         row, cls = original["row"], original["class"]
         n = int(row["number"])
@@ -1280,7 +1301,9 @@ class Daemon:
         if value.get("verdict") == "HELD" and residuals:
             self.hold(row, "RELAND_ADMISSION_HELD", state, summary, failing=residuals, cls=cls,
                       extra={**self._watch(base_sha, self._consumed_paths(value),
-                                           payloads=self._consumed_payloads(value)), "repair_head": final})
+                                           payloads=self._consumed_payloads(value)),
+                             "admission_source": self._admission_binding(admission_source or {}),
+                             "repair_head": final})
             return
         if (value.get("verdict") != "MERGEABLE" or residuals
                 or (value.get("admission") or {}).get("complete", True) is not True):
