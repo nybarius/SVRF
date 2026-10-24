@@ -6,6 +6,7 @@ from pathlib import Path
 
 from fakes import Admission, DaemonGitHub, DaemonRepo, FakeGate
 from test_daemon import daemon
+from svrf.errors import ReadFailed
 
 
 class CommandAdmission(Admission):
@@ -65,6 +66,41 @@ class CheckerCommandReopening(unittest.TestCase):
         self.assertEqual(len(self.gate.trees), before)
         self.assertEqual(self.gh.merged, [])
 
+
+    def failed_watch_owner(self, command):
+        def unreadable_watch(*args):
+            raise ReadFailed("ORIGINAL_WATCH_UNAVAILABLE")
+        self.repo.watch_digest = unreadable_watch
+        admission = CommandAdmission(command, {
+            "h31": {"verdict": "HELD", "residuals": ["check:original-failure"],
+                    "consumed": [{"kind": "PATH", "id": "lane:31"}]}})
+        owner = daemon(self.repo, self.gh, self.gate, admission, self.root,
+                       admission_watch=["lane:31"])
+        return owner, admission
+
+    def test_unchanged_command_and_failed_watch_stay_quiet_after_restart(self):
+        owner, original = self.failed_watch_owner("CHECKER=old original-admission")
+        owner.tick()
+        held = json.loads((self.root / "state.json").read_text())["held"]["31"]
+        self.assertEqual(len(original.calls), 1)
+        successor, unchanged = self.failed_watch_owner("CHECKER=old original-admission")
+        successor.tick()
+        successor.tick()
+        self.assertEqual(unchanged.calls, [],
+                         "omitting the failed watch is not an observed source change")
+        self.assertEqual(json.loads((self.root / "state.json").read_text())["held"]["31"], held)
+        self.assertEqual(self.gh.merged, [])
+
+    def test_changed_command_reopens_even_when_the_original_watch_stays_unreadable(self):
+        owner, original = self.failed_watch_owner("CHECKER=old original-admission")
+        owner.tick()
+        successor, changed = self.failed_watch_owner("CHECKER=new original-admission")
+        successor.tick()
+        successor.tick()
+        self.assertEqual(len(original.calls), 1)
+        self.assertEqual(len(changed.calls), 1,
+                         "one changed checker warrants one ordinary admission, not repeated unchanged retries")
+        self.assertEqual(self.gh.merged, [])
 
 if __name__ == "__main__":
     unittest.main()
