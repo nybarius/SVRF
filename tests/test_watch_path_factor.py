@@ -75,6 +75,11 @@ class WatchPathFactor(unittest.TestCase):
         self.assertEqual(held["base_sha"], self.base)
         self.assertNotIn("watch_digest", held)
         self.assertEqual(held["watch_read_failure"], "WATCH_PATHS_UNREADABLE:7")
+        held["head"] = "candidate"
+        recovered = owner.watch_digest(held, {"headRefOid": "candidate"}, {"sha": self.base})
+        self.assertEqual(recovered, self.original(self.base, ["read"]))
+        self.assertNotIn("watch_read_failure", held)
+
 
 
 if __name__ == "__main__":
