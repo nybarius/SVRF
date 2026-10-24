@@ -950,6 +950,7 @@ class Daemon:
                 # Recover the original basis before comparing a possibly changed base.
                 held["watch_digest"] = digest(held["base_sha"], held.get("watch") or [],
                                               **({"payloads": payloads} if payloads else {}))
+                held.pop("watch_read_failure", None)
             if base_now["sha"] is None:
                 base_now["sha"] = self.git.main_sha()
             if base_now["sha"] == held.get("base_sha"):
