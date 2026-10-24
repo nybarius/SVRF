@@ -571,6 +571,7 @@ class Train:
             n = planned["number"]
             rest = [s["number"] for s in steps[index:]]
             row = self.rows[n]
+            defer_decision = False
             try:
                 current = self.git.main_sha()
                 if current != expected:
@@ -602,6 +603,7 @@ class Train:
                         break
                     except _LandingRevisionRefused:
                         if decision_attempt:
+                            defer_decision = True
                             raise
                         check_stop(self.stop_requested)
                         if self.git.main_sha() != current:
@@ -614,6 +616,9 @@ class Train:
                         if retry_pull.get("head_sha") != row["head_sha"]:
                             raise ReadFailed("METON_DECISION_HEAD_MOVED")
                         check_stop(self.stop_requested)
+                    except ReadFailed:
+                        defer_decision = True
+                        raise
                 if decision_index is not None:
                     check_stop(self.stop_requested)
                     # The independent receiving call can outlive a source change.
@@ -640,6 +645,11 @@ class Train:
             except ReadFailed as failure:
                 self.retry_later(n, failure.reason)
                 self._stop_family(family, index, "RETRY")
+                if defer_decision:
+                    # An unread decision is pending, like an unread gate.
+                    # Replanning later families must not repeat this acquisition.
+                    self.receipt["pending"].extend(rest)
+                    return False, []
                 return False, rest
             row["head_sha"] = prepared.commit
             merge_row = {"number": n, "family": family["id"], "gate": family["gate"],

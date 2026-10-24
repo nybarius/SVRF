@@ -71,6 +71,20 @@ def _strip_trailers(text: str) -> str:
     return "\n".join(line for line in text.splitlines() if not line.lower().startswith("co-authored-by:"))
 
 
+class _AdmissionCancellation:
+    """An attempt's explicit cancellation and its owner's stop request."""
+
+    def __init__(self, stop_requested: Callable[[], bool]):
+        self._explicit = Event()
+        self._stop_requested = stop_requested
+
+    def is_set(self) -> bool:
+        return self._explicit.is_set() or self._stop_requested()
+
+    def set(self) -> None:
+        self._explicit.set()
+
+
 class Daemon:
     def __init__(self, git, github, gate, admission, *, state_dir: Path, receipts: Path, base: str = "main",
                  clock=time.time, sleep=time.sleep, train_options: dict | None = None, dry_run: bool = False,
@@ -584,7 +598,8 @@ class Daemon:
             if self._stop_requested:
                 break
             n = int(row["number"])
-            cancelled = Event() if isinstance(self.admission, Admission) else None
+            cancelled = (_AdmissionCancellation(lambda: self._stop_requested)
+                         if isinstance(self.admission, Admission) else None)
             source = source_identity(self.admission, n, row.get("headRefOid"), base,
                                      self.round_inputs.get(n))
             attempt = AdmissionAttempt(self.state_dir, n, row.get("headRefOid"), base,
@@ -703,7 +718,68 @@ class Daemon:
         seen.update({int(r["number"]): r.get("headRefOid") for r in candidates})
         known: dict[int, dict] = {}
 
-        def land_batch(batch: list[int]) -> None:
+        def receive(done, pending: dict, batch: list[int]) -> None:
+            for future in sorted(done, key=lambda f: pending[f]):
+                if self._stop_requested:
+                    break
+                n = pending[future]
+                item = self.inflight.pop(n)
+                row, rbase = item["row"], item["base"]
+                known[n] = row
+                value, failure, seconds = future.result()
+                summary["admission_seconds"][str(n)] = round(seconds, 3)
+                if "cancellation" in item:
+                    summary.setdefault("admission_cancelled", []).append({
+                        **item["cancellation"], "seconds": round(seconds, 3),
+                        "returned": value,
+                        "read_failure": (failure.reason if isinstance(failure, ReadFailed)
+                                         else type(failure).__name__ if failure else None),
+                    })
+                    continue  # retirement is neither an admission nor a hold
+                if self.admission_round_reads:
+                    state.setdefault("waiting_since", {})[str(n)] = self.clock()
+                if "reland" in item:
+                    if summary["stopped"] or self._stop_requested:
+                        self._retry(summary, n, "STOP_REQUESTED" if self._stop_requested else "TRAIN_STOPPED")
+                    else:
+                        self._finish_reland(item["reland"], row["headRefOid"], rbase,
+                                            value, failure, state, summary, revalidate=True)
+                    continue
+                if failure is not None:
+                    if isinstance(failure, ReadFailed):
+                        self._retry(summary, n, failure.reason)
+                    else:  # a check that could not run is a read not made
+                        self._retry(summary, n, f"ADMISSION_FAILED:{type(failure).__name__}:{failure}"[:200])
+                    continue
+                state["held"].pop(str(n), None)
+                decision, cls = rules.admission_decision(value, self.is_union, reland=self.reland_enabled)
+                residuals = list(value.get("residuals") or [])
+                if decision == "ADMIT":
+                    admitted.append(n)
+                    batch.append(n)
+                elif summary["stopped"] or self._stop_requested:
+                    self._retry(summary, n, "STOP_REQUESTED" if self._stop_requested else "TRAIN_STOPPED")
+                elif decision == "ALREADY_MERGED":
+                    self.close_merged(row, rbase, state, summary)
+                elif decision == "REPAIR" and self.repair_enabled:
+                    self.repair(row, cls, residuals, state, summary)
+                elif decision == "RELAND":
+                    self.reland(row, cls, state, summary)
+                elif decision in ("HOLD", "REPAIR"):
+                    self.hold(row, "ADMISSION_HELD", state, summary, failing=residuals,
+                              extra=self._watch(rbase, self._consumed_paths(value),
+                                                payloads=self._consumed_payloads(value)))
+                else:
+                    self._retry(summary, n, cls or "ADMISSION_UNREAD")
+            summary["admitted"] = sorted(set(summary["admitted"]) | set(admitted))
+
+        def land_batch(batch: list[int], pending: dict) -> None:
+            if not self._stop_requested:
+                # One zero-wait snapshot of the original wait cohort. Refill or
+                # replacement futures are received by a later loop iteration.
+                ready = {future for future, n in pending.items()
+                         if future.done() and self.inflight.get(n, {}).get("future") is future}
+                receive(ready, pending, batch)
             if batch:
                 if summary["stopped"]:
                     for n in batch:
@@ -723,64 +799,12 @@ class Daemon:
                 batch: list[int] = []
                 # Keep every result already available in the same group. Slow reads
                 # do not order other heads; the train still owns folding and landing.
-                for future in sorted(done, key=lambda f: pending[f]):
-                    if self._stop_requested:
-                        break
-                    n = pending[future]
-                    item = self.inflight.pop(n)
-                    row, rbase = item["row"], item["base"]
-                    known[n] = row
-                    value, failure, seconds = future.result()
-                    summary["admission_seconds"][str(n)] = round(seconds, 3)
-                    if "cancellation" in item:
-                        summary.setdefault("admission_cancelled", []).append({
-                            **item["cancellation"], "seconds": round(seconds, 3),
-                            "returned": value,
-                            "read_failure": (failure.reason if isinstance(failure, ReadFailed)
-                                             else type(failure).__name__ if failure else None),
-                        })
-                        continue  # retirement is neither an admission nor a hold
-                    if self.admission_round_reads:
-                        state.setdefault("waiting_since", {})[str(n)] = self.clock()
-                    if "reland" in item:
-                        if summary["stopped"] or self._stop_requested:
-                            self._retry(summary, n, "STOP_REQUESTED" if self._stop_requested else "TRAIN_STOPPED")
-                        else:
-                            self._finish_reland(item["reland"], row["headRefOid"], rbase,
-                                                value, failure, state, summary, revalidate=True)
-                        continue
-                    if failure is not None:
-                        if isinstance(failure, ReadFailed):
-                            self._retry(summary, n, failure.reason)
-                        else:  # a check that could not run is a read not made
-                            self._retry(summary, n, f"ADMISSION_FAILED:{type(failure).__name__}:{failure}"[:200])
-                        continue
-                    state["held"].pop(str(n), None)
-                    decision, cls = rules.admission_decision(value, self.is_union, reland=self.reland_enabled)
-                    residuals = list(value.get("residuals") or [])
-                    if decision == "ADMIT":
-                        admitted.append(n)
-                        batch.append(n)
-                    elif summary["stopped"] or self._stop_requested:
-                        self._retry(summary, n, "STOP_REQUESTED" if self._stop_requested else "TRAIN_STOPPED")
-                    elif decision == "ALREADY_MERGED":
-                        self.close_merged(row, rbase, state, summary)
-                    elif decision == "REPAIR" and self.repair_enabled:
-                        self.repair(row, cls, residuals, state, summary)
-                    elif decision == "RELAND":
-                        self.reland(row, cls, state, summary)
-                    elif decision in ("HOLD", "REPAIR"):
-                        self.hold(row, "ADMISSION_HELD", state, summary, failing=residuals,
-                                  extra=self._watch(rbase, self._consumed_paths(value),
-                                                    payloads=self._consumed_payloads(value)))
-                    else:
-                        self._retry(summary, n, cls or "ADMISSION_UNREAD")
-                summary["admitted"] = sorted(set(summary["admitted"]) | set(admitted))
+                receive(done, pending, batch)
                 # Ready gates share admission reservations when a guard is configured.
                 # Let them land before fresh reads can claim the released capacity.
                 land_before_refill = self.memory is not None
                 if land_before_refill:
-                    land_batch(batch)
+                    land_batch(batch, pending)
                 # a slot freed by a finished read is refilled from the current snapshot's queue
                 # (only when the round was cut short: the list is read again when it left candidates unread)
                 if (summary.get("deferred") and slots - len(self.inflight) > 0 and not summary["stopped"]
@@ -810,7 +834,7 @@ class Daemon:
                             self._submit(more, more_base)
                 # Without a shared guard, retain admission overlap during the gate.
                 if not land_before_refill:
-                    land_batch(batch)
+                    land_batch(batch, pending)
                 self.save(state, summary)
         finally:
             if self._stop_requested:
