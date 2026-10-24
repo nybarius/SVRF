@@ -934,10 +934,9 @@ class Daemon:
             # hold without that basis has an unobserved read and is checked once.
             current = self._admission_binding(source_identity(
                 self.admission, int(row["number"]), row.get("headRefOid"), held.get("base_sha")))
-            if current != held.get("admission_source"):
+            if current != self._admission_binding(held.get("admission_source") or {}):
                 return (f"{held.get('watch_digest')}:admission-source:"
-                        f"{current['command_fingerprint']}:{current['environment_fingerprint']}:"
-                        f"{current['source_status']}")
+                        f"{current['command_fingerprint']}:{current['environment_fingerprint']}")
         if not (held.get("watch") or held.get("payload_watch")):
             return None
         digest = getattr(self.git, "watch_digest", None)
@@ -968,8 +967,11 @@ class Daemon:
 
     @staticmethod
     def _admission_binding(source: dict) -> dict:
+        # Configuration/environment are the original owner's separate identities.
+        # source_status also consumes admission_watch; its original watch owner
+        # retains unreadability instead of comparing it with an omitted watch.
         return {key: source.get(key) for key in (
-            "command_fingerprint", "environment_fingerprint", "source_status")}
+            "command_fingerprint", "environment_fingerprint")}
 
     @staticmethod
     def _consumed_paths(value: dict) -> list[str]:
