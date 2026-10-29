@@ -51,7 +51,8 @@ from .admission_retry import retain_failure, source_identity
 from .train_events import project_receipt
 from .errors import RateLimited, ReadFailed
 from .locks import owner_lock
-from .train import Train
+from . import pr_surface
+from .train import Train, post_surface, reason_line
 
 _tick_serial = itertools.count()
 STATE_SCHEMA = "svrf.state/1"
@@ -1099,10 +1100,31 @@ class Daemon:
         entry = {"head": row.get("headRefOid"), "head_ref": row.get("headRefName"),
                  "title": row.get("title", ""), "reason": reason, "class": cls,
                  "failing": list(failing)[:24], "paths": list(paths), "at": summary["at"], **(extra or {})}
+        self._surface_hold(n, entry, state["held"].get(str(n)))
         state["held"][str(n)] = entry
         summary["held_rows"].append({"number": n, **entry})
         if n not in summary["held"]:
             summary["held"].append(n)
+
+    def _surface_hold(self, n: int, entry: dict, previous: dict | None) -> None:
+        """Show the hold on the pull request through the train's own surface, so a worker that
+        reads only the pull request sees the held head and every failing line. A hold already
+        shown at the same head is not posted again; a failed post leaves `surfaced` unset, so
+        the next hold of that pull request posts it."""
+        status_checks = self.train_options.get("status_checks", True)
+        pr_comments = self.train_options.get("pr_comments", True)
+        if self.dry_run or not entry["head"] or not (status_checks or pr_comments):
+            return
+        event = {"number": n, "phase": "HELD", "history": [], "head": entry["head"],
+                 "failing": entry["failing"],
+                 "reason_line": reason_line(entry["reason"], entry["paths"], entry["failing"], None)}
+        shown = pr_surface.comment_hash(pr_surface.render_comment(event))
+        if previous and previous.get("head") == entry["head"] and previous.get("surfaced") == shown:
+            entry["surfaced"] = shown
+            return
+        if post_surface(self.gh, lambda fn, *args: fn(*args), entry["head"], event, status_checks=status_checks,
+                        pr_comments=pr_comments, dashboard_url=self.train_options.get("dashboard_url") or ""):
+            entry["surfaced"] = shown
 
     def repair(self, row: dict, cls: str, lines: list[str], state: dict, summary: dict) -> None:
         """Union-merge the current base into the branch and push it by refspec; the new

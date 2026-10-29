@@ -66,6 +66,52 @@ SCHEMA = "svrf.receipt/1"
 _receipt_serial = itertools.count()
 
 
+def reason_line(reason: str, paths: list[str], failing: list[str], conflict_with: list[int] | None) -> str:
+    """A one-line, human reason for a hold: what a developer reads in the status and the
+    comment, not the internal reason code."""
+    if conflict_with:
+        where = f" on {paths[0]}" if paths else ""
+        return "conflicts with " + " ".join(f"#{p}" for p in conflict_with) + where
+    if reason == "CONFLICT" and paths:
+        return "conflicts on " + ", ".join(paths[:3])
+    if failing:
+        return pr_surface.one_line(str(failing[0]))
+    return reason.replace("_", " ").lower()
+
+
+def post_surface(gh, call, sha: str, event: dict, *, status_checks: bool, pr_comments: bool,
+                 dashboard_url: str = "", counts: dict | None = None) -> bool:
+    """Post one surface event: the commit status on `sha` and/or the pull request's living
+    comment. Best-effort: a failed read or write is skipped, never raised; the return says
+    whether every requested post was made."""
+    counts = {} if counts is None else counts
+    posted = True
+    if status_checks:
+        state, description = pr_surface.status_line(event)
+        try:
+            call(gh.set_status, sha, state, description, pr_surface.CONTEXT, dashboard_url or None)
+            counts["status"] = counts.get("status", 0) + 1
+        except ReadFailed:
+            posted = False
+    if pr_comments:
+        body = pr_surface.render_comment(event)
+        digest = pr_surface.comment_hash(body)
+        try:
+            comments = call(gh.list_comments, event["number"])
+            existing = next((c for c in comments if pr_surface.is_surface_comment(c.get("body") or "")), None)
+            if existing is not None and pr_surface.comment_hash(existing.get("body") or "") == digest:
+                counts["comment_skip"] = counts.get("comment_skip", 0) + 1
+            elif existing is not None:
+                call(gh.update_comment, existing["id"], body)
+                counts["comment_write"] = counts.get("comment_write", 0) + 1
+            else:
+                call(gh.comment, event["number"], body)
+                counts["comment_write"] = counts.get("comment_write", 0) + 1
+        except ReadFailed:
+            posted = False
+    return posted
+
+
 class _LandingRevisionRefused(ReadFailed):
     """A received revision refusal before this prepared publication."""
     def __init__(self, occurrence: int):
@@ -304,16 +350,7 @@ class Train:
 
     def _reason_line(self, reason: str, paths: list[str], failing: list[str],
                      conflict_with: list[int] | None) -> str:
-        """A one-line, human reason for a hold: what a developer reads in the status and
-        the comment, not the internal reason code."""
-        if conflict_with:
-            where = f" on {paths[0]}" if paths else ""
-            return "conflicts with " + " ".join(f"#{p}" for p in conflict_with) + where
-        if reason == "CONFLICT" and paths:
-            return "conflicts on " + ", ".join(paths[:3])
-        if failing:
-            return pr_surface.one_line(str(failing[0]))
-        return reason.replace("_", " ").lower()
+        return reason_line(reason, paths, failing, conflict_with)
 
     def _surface_event(self, number: int, phase: str, **fields) -> None:
         """Render and post the commit status and/or the living comment for one pull
@@ -331,36 +368,9 @@ class Train:
         sha = self.rows.get(number, {}).get("head_sha")
         if not sha:
             return
-        if self.status_checks:
-            state, description = pr_surface.status_line(event)
-            try:
-                self.call(self.gh.set_status, sha, state, description, pr_surface.CONTEXT,
-                         self.dashboard_url or None)
-                self._surface_calls["status"] += 1
-            except ReadFailed:
-                pass
-        if self.pr_comments:
-            self._upsert_comment(number, event)
-
-    def _upsert_comment(self, number: int, event: dict) -> None:
-        body = pr_surface.render_comment(event)
-        digest = pr_surface.comment_hash(body)
-        try:
-            comments = self.call(self.gh.list_comments, number)
-        except ReadFailed:
-            return
-        existing = next((c for c in comments if pr_surface.is_surface_comment(c.get("body") or "")), None)
-        if existing is not None and pr_surface.comment_hash(existing.get("body") or "") == digest:
-            self._surface_calls["comment_skip"] += 1
-            return
-        try:
-            if existing is not None:
-                self.call(self.gh.update_comment, existing["id"], body)
-            else:
-                self.call(self.gh.comment, number, body)
-            self._surface_calls["comment_write"] += 1
-        except ReadFailed:
-            pass
+        post_surface(self.gh, self.call, sha, event, status_checks=self.status_checks,
+                     pr_comments=self.pr_comments, dashboard_url=self.dashboard_url,
+                     counts=self._surface_calls)
 
     def alert(self, alert: str, **detail) -> None:
         self._add("alerts", {"alert": alert, **detail})
