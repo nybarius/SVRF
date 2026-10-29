@@ -11,14 +11,17 @@ import time
 import types
 import unittest
 
-sys.path.insert(0, os.environ["SVRF_SOURCE_ROOT"] + "/src")
+# Host runs name the checked source; a checkout checks its own.
+SOURCE_ROOT = os.environ.get("SVRF_SOURCE_ROOT", str(Path(__file__).resolve().parents[1]))
+sys.path.insert(0, SOURCE_ROOT + "/src")
 owner = importlib.import_module("svrf.daemon")
 gate_owner = importlib.import_module("svrf.gate")
-source = Path(os.environ["ADMISSION_SOURCE"]).read_text()
+ADMISSION_SOURCE = os.environ.get("ADMISSION_SOURCE", SOURCE_ROOT + "/src/svrf/daemon.py")
+source = Path(ADMISSION_SOURCE).read_text()
 cls = next(n for n in ast.parse(source).body if isinstance(n, ast.ClassDef) and n.name == "Daemon")
 node = next(n for n in cls.body if isinstance(n, ast.FunctionDef) and n.name == "_read_admission")
 namespace = dict(owner.__dict__)
-exec(compile(ast.Module(body=[node], type_ignores=[]), os.environ["ADMISSION_SOURCE"], "exec"), namespace)
+exec(compile(ast.Module(body=[node], type_ignores=[]), ADMISSION_SOURCE, "exec"), namespace)
 read_admission = namespace["_read_admission"]
 gate_source = os.environ.get("GATE_SOURCE")
 if gate_source:
