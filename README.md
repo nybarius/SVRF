@@ -341,7 +341,7 @@ production; corrections welcome (open an issue).
 | Union-merges configured files instead of conflicting | yes | no | no | no | no | no | no |
 | Compares each landed tree with the gated tree | yes | not documented | not documented | not documented | not documented | not documented | not documented |
 | Re-lands out-of-order histories | yes (optional) | no | no | no | no | no | no |
-| Needs hosted CI minutes | no | yes | yes | yes | yes | yes | no |
+| Needs hosted CI minutes | optional; none when self-hosted | generally yes, depending on configured CI | depends on CI | depends on CI | depends on CI | depends on CI | no hosted CI required |
 
 SVRF is young and single-repository. If your CI is fast relative to your pull-request
 rate, or you're already paying for a GitHub plan that includes it, GitHub's merge queue
