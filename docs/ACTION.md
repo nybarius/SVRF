@@ -4,6 +4,10 @@
 one discovery/admission/gate/land pass, then it exits. It does not watch continuously —
 schedule it with a workflow's `on.schedule`, the same way you would run any periodic job.
 
+> **Release note:** `v0.3.0` is the latest tagged release. `main` contains
+> additional unreleased admission and retry changes. Pin a reviewed release or
+> commit for reproducibility.
+
 ## Zero-config
 
 The Action works with no `svrf.toml` in the repository at all: if the file the `config`
@@ -62,7 +66,7 @@ jobs:
           path: ~/.local/share/svrf
           key: svrf-state-${{ github.repository }}
 
-      - uses: nybarius/SVRF@v0.1.0
+      - uses: nybarius/SVRF@v0.3.0
         with:
           github-token: ${{ secrets.SVRF_TOKEN }}
           config: svrf.toml
