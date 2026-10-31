@@ -71,8 +71,8 @@ SVRF merges a pull request with a REST call pinned to a specific commit sha
 GitHub refuses the merge outright if the head has moved since SVRF read it, which is what
 keeps a merge from landing a tree nobody gated.
 
-If the target repository's branch protection requires status checks to pass before a
-merge is allowed, that requirement applies to this call exactly as it would to a merge
+If the target repository's branch protection requires checks to pass before a
+merge, the requirement applies to this call exactly as it would to a merge
 button click or any other API merge. SVRF publishes an optional `svrf` commit status but does not publish the independently
 required CI check names (see "Commit statuses" above), so one of the following must be true or
 every merge attempt will be rejected by branch protection:
