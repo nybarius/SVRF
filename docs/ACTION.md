@@ -32,7 +32,7 @@ run's logs), you can switch to the narrower sparse checkout below.
 
 | Input | Required | Default | Meaning |
 | --- | --- | --- | --- |
-| `github-token` | yes | | A token scoped to this repository with the permissions in `docs/GITHUB_SETUP.md` (contents and pull requests read/write, issues write, metadata read). Exposed to the round as `GH_TOKEN`. |
+| `github-token` | yes | | A token scoped to this repository with the permissions in `docs/GITHUB_SETUP.md` (contents and pull requests read/write, issues write, metadata read, and commit statuses write when `ui.status_checks` is enabled). Exposed to the round as `GH_TOKEN`. |
 | `config` | no | `svrf.toml` | Path to the config file, relative to the job's working directory. |
 | `python-version` | no | `3.12` | Python used to install and run `svrf` itself — not your gate's own toolchain. |
 
@@ -72,8 +72,8 @@ jobs:
           config: svrf.toml
 ```
 
-`secrets.SVRF_TOKEN` should be a repository (or fine-grained personal access token)
-secret you created yourself with the scopes `docs/GITHUB_SETUP.md` lists — the workflow's
+`secrets.SVRF_TOKEN` should be a repository or fine-grained personal access token
+secret you created with the permissions listed in [GITHUB_SETUP.md](GITHUB_SETUP.md) — the workflow's
 own automatic `GITHUB_TOKEN` does not have the pull-request or issues write scopes SVRF
 needs by default, and using it would attribute every merge to `github-actions[bot]`
 without the permissions to actually make one.
