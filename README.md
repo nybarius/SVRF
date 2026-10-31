@@ -286,7 +286,10 @@ Unknown keys are refused.
 | `history.tests`, `history.docs` | common globs | how paths are classified for the history check |
 | `admission.command` | `""` | extra admission check; exit 0 admits, 126/127 means "could not run" |
 | `admission.watch` | `[]` | paths every hold depends on (requirements, toolchain pins); a base change there rereads every hold |
-| `admission.slots` | `train.jobs` | admission reads (candidates' `admission.command`) run at once, each in its own worktree and admitted by the same `gate.memory_gb`/`memory_reserve_gb` guard as a gate |
+| `admission.slots` | `train.jobs` | concurrent admission reads, with separate worktrees and the same memory guard as gates |
+| `admission.capacity_command` | unset | optional dynamic cap on admission concurrency; unavailable capacity defers admissions rather than guessing |
+| `admission.round_reads` | unset | maximum new admission reads per round; keeps discovery responsive under heavy backlog |
+| `admission.priority_command` | unset | optional priority list, including exact `PR@HEAD` identities (see below); never bypasses admission or gating |
 | `ui.pr_comments` | `true` | one living comment per pull request (see [docs/PR_SURFACE.md](docs/PR_SURFACE.md)) |
 | `ui.status_checks` | `true` | a `svrf` commit status on each candidate head |
 | `ui.dashboard_url` | `""` | optional: linked from the status as `target_url` |
