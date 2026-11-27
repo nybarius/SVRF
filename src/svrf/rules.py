@@ -141,7 +141,7 @@ def choose_families(numbers: list[int], conflicts: list[dict], unreadable: list[
 
 def retry_due(held: dict, now: dict) -> bool:
     """A held pull request is read again exactly when what its verdict depended on
-    changed: its head sha, or the base branch's content over the paths the hold watched.
+    changed: its head sha, or the source observations the hold watched.
     Otherwise the verdict stands and no gate is spent on it again."""
     return (held.get("head"), held.get("watch_digest")) != (now.get("head"), now.get("watch_digest"))
 

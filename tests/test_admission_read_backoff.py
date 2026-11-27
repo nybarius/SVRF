@@ -333,8 +333,9 @@ class ReadBasisBackoff(unittest.TestCase):
                       clock=self.clock, sleep=self.clock.sleep, repair=False, reland=False,
                       train_options={"poll_seconds": 0})
 
-    def command(self, evidence="valid", *, terminal=True, composed=False):
+    def command(self, evidence="valid", *, terminal=True, composed=False, held=False):
         project = Path(__file__).resolve().parents[1]
+        held_exit = "raise SystemExit(1)\n" if held else ""
         code = f"""
 import json, os, subprocess, sys, time
 from pathlib import Path
@@ -363,7 +364,7 @@ elif evidence == "empty":
 if evidence != "absent":
     Path(os.environ["SVRF_ADMISSION_READS"]).write_text(
         "{{" if evidence == "malformed" else json.dumps(value))
-rows = [beginning(pr=int(os.environ["SVRF_PR"]), head=os.environ["SVRF_HEAD"],
+{held_exit}rows = [beginning(pr=int(os.environ["SVRF_PR"]), head=os.environ["SVRF_HEAD"],
                   base=os.environ["SVRF_BASE"]),
         {{"kind": "terminal", "disposition": "UNOBSERVED", "exit": 126}}]
 if not {terminal!r}:
@@ -626,6 +627,197 @@ raise SystemExit(126)
             failure = self.owner.load_state()["admission_retries"]["1"]
             self.assertEqual(failure["no_progress_failures"], 1)
             self.assertIsNone(failure["retry_at"])
+
+
+    def test_equal_base_tree_reopens_a_changed_clean_composed_hold(self):
+        def contents(left, right):
+            return left + "\n" + "".join(f"unchanged {n}\n" for n in range(8)) + right + "\n"
+
+        # The original real-Git history: A -> M -> H and A -> B0.
+        self.git("checkout", "-q", "candidate")
+        selected = self.source / "read/one"
+        selected.write_text(contents("A", "B"))
+        ancestor = self.commit()
+        selected.write_text(contents("X", "Y"))
+        middle = self.commit()
+        selected.write_text(contents("A", "Y"))
+        self.head = self.commit()
+        self.git("checkout", "-q", "main")
+        self.git("merge", "--ff-only", "-q", ancestor)
+        selected.write_text(contents("X", "B"))
+        base = self.commit()
+        self.repo.heads[1] = self.head
+        self.repo.branches["pr-1"] = self.head
+        self.git("push", "-q", "origin", "main", "candidate:refs/pull/1/head")
+        self.read.command = self.command(composed=True, held=True)
+
+        self.assertEqual(self.git("merge-base", base, self.head), ancestor)
+        first = self.repo.merge_preview(base, self.head)
+        self.assertEqual(first["status"], "CLEAN")
+        self.assertEqual(self.git("show", first["tree"] + ":read/one"), contents("X", "Y").strip())
+        tick = self.owner.tick()
+        self.assertEqual(self.read.calls, 1)
+        self.assertEqual(tick["held"], [1])
+        self.assertEqual(tick["retry_later"], [])
+        original = self.owner.load_state()
+        self.assertNotIn("1", original.get("admission_retries", {}))
+        held = original["held"]["1"]
+        self.assertEqual(held["reason"], "ADMISSION_HELD")
+        self.assertEqual(held["failing"][-1], "check:Y")
+        self.assertEqual(len(original["admission_history"]), 1)
+        terminal = next(iter(original["admission_history"].values()))
+        self.assertEqual(terminal["exit"], 1)
+        self.assertEqual(terminal["terminal_disposition"], "HELD")
+        self.assertFalse(terminal["read_failed"])
+        self.assertEqual(terminal["result"]["residuals"], held["failing"])
+        self.assertEqual(terminal["result"]["consumed"], [{"kind": "PATH", "id": "read/one"}])
+
+        # A changed whole composition with the same selected read stays quiet.
+        base = self.move_unread("unread held-composition change")
+        unread = self.repo.merge_preview(base, self.head)
+        self.assertEqual(unread["status"], "CLEAN")
+        self.assertNotEqual(unread["tree"], first["tree"])
+        self.assertEqual(self.git("show", unread["tree"] + ":read/one"), contents("X", "Y").strip())
+        self.owner.tick()
+        self.assertEqual(self.read.calls, 1, "an unread composed change paid the held command again")
+        retained = self.owner.load_state()
+        self.assertEqual(retained["held"]["1"]["failing"], held["failing"])
+        self.assertEqual(retained["admission_history"], original["admission_history"])
+        self.assertNotIn("1", retained.get("admission_retries", {}))
+
+        # The same received hold remains sufficient after an actual owner restart.
+        self.owner.close()
+        self.owner = self.make_owner()
+        self.owner.tick()
+        self.assertEqual(self.read.calls, 1)
+        restarted = self.owner.load_state()
+        self.assertEqual(restarted["held"]["1"]["failing"], held["failing"])
+        self.assertEqual(restarted["admission_history"], original["admission_history"])
+
+        # B1 keeps B0's tree and watched base bytes, but adds M as a parent.
+        tree = self.git("rev-parse", base + "^{tree}")
+        watched = self.repo.watch_digest(base, held["watch"])
+        changed = self.repo.changed_paths(base, self.head)
+        moved = self.git("commit-tree", tree, "-p", base, "-p", middle, "-m", "changed merge base")
+        self.git("reset", "--hard", moved)
+        self.git("push", "-q", "origin", "main")
+        self.assertEqual(self.git("rev-parse", moved + "^{tree}"), tree)
+        self.assertEqual(self.repo.watch_digest(moved, held["watch"]), watched)
+        self.assertEqual(changed, ["read/one"])
+        self.assertEqual(self.repo.changed_paths(moved, self.head), changed)
+        self.assertFalse(self.repo.is_ancestor(self.head, moved))
+        self.assertEqual(self.git("merge-base", moved, self.head), middle)
+        composed = self.repo.merge_preview(moved, self.head)
+        self.assertEqual(composed["status"], "CLEAN")
+        self.assertNotEqual(composed["tree"], unread["tree"])
+        self.assertEqual(self.git("show", composed["tree"] + ":read/one"), contents("A", "B").strip())
+
+        tick = self.owner.tick()
+        self.assertEqual(self.read.calls, 2, "a changed clean composed read reused the held verdict")
+        self.assertEqual(tick["held"], [1])
+        self.assertEqual(tick["retry_later"], [])
+        current = self.owner.load_state()
+        self.assertNotIn("1", current.get("admission_retries", {}))
+        self.assertEqual(current["held"]["1"]["reason"], "ADMISSION_HELD")
+        self.assertEqual(current["held"]["1"]["failing"][-1], "check:B")
+        later = [entry for identity, entry in current["admission_history"].items()
+                 if identity not in original["admission_history"]]
+        self.assertEqual(len(later), 1)
+        self.assertEqual(later[0]["base"], moved)
+        self.assertEqual(later[0]["exit"], 1)
+        self.assertEqual(later[0]["terminal_disposition"], "HELD")
+        self.assertFalse(later[0]["read_failed"])
+        self.assertEqual(later[0]["result"]["residuals"], current["held"]["1"]["failing"])
+        for identity, occurrence in original["admission_history"].items():
+            self.assertEqual(current["admission_history"][identity], occurrence)
+
+
+
+    def test_an_ordinary_hold_without_a_qualified_basis_tracks_the_full_base(self):
+        for evidence in ("absent", "empty", "other-commit"):
+            with self.subTest(evidence=evidence):
+                self.read.command = self.command(evidence, composed=True, held=True)
+                before = self.read.calls
+                tick = self.owner.tick()
+                self.assertEqual(self.read.calls, before + 1)
+                self.assertEqual((tick["held"], tick["retry_later"]), ([1], []))
+                original = self.owner.load_state()
+                held = original["held"]["1"]
+                self.assertEqual(held["reason"], "ADMISSION_HELD")
+                self.assertNotIn("1", original.get("admission_retries", {}))
+                base = self.repo.main_sha()
+                watched = self.repo.watch_digest(base, held["watch"])
+
+                quiet = self.owner.tick()
+                self.assertEqual(quiet["held_unchanged"], [1])
+                self.assertEqual(self.read.calls, before + 1)
+                self.assertEqual(self.owner.load_state()["admission_history"],
+                                 original["admission_history"])
+
+                moved = self.move_unread("full-base hold: " + evidence)
+                self.assertEqual(self.repo.watch_digest(moved, held["watch"]), watched)
+                tick = self.owner.tick()
+                self.assertEqual(self.read.calls, before + 2,
+                                 "an unqualified hold reused only its selected base paths")
+                self.assertEqual((tick["held"], tick["retry_later"]), ([1], []))
+                current = self.owner.load_state()
+                self.assertEqual(current["held"]["1"]["base_sha"], moved)
+                self.assertEqual(current["held"]["1"]["failing"], held["failing"])
+                self.assertNotIn("1", current.get("admission_retries", {}))
+                later = [entry for identity, entry in current["admission_history"].items()
+                         if identity not in original["admission_history"]]
+                self.assertEqual(len(later), 1)
+                self.assertEqual((later[0]["base"], later[0]["exit"],
+                                  later[0]["terminal_disposition"], later[0]["read_failed"]),
+                                 (moved, 1, "HELD", False))
+                for identity, occurrence in original["admission_history"].items():
+                    self.assertEqual(current["admission_history"][identity], occurrence)
+
+    def test_a_legacy_hold_is_received_once_with_the_unchanged_checker(self):
+        self.read.command = self.command(composed=True, held=True)
+        tick = self.owner.tick()
+        self.assertEqual(self.read.calls, 1)
+        self.assertEqual((tick["held"], tick["retry_later"]), ([1], []))
+        original = self.owner.load_state()
+        legacy = self.owner.load_state()
+        optional = ("admission_read_basis", "admission_read_key")
+        for field in optional:
+            legacy["held"]["1"].pop(field, None)
+        expected = {key: value for key, value in original["held"]["1"].items()
+                    if key not in optional}
+        self.assertEqual(legacy["held"]["1"], expected)
+        self.owner.save(legacy, tick)
+        saved = self.owner.load_state()
+        self.assertEqual(saved["held"]["1"], expected)
+        self.assertEqual(saved["admission_history"], original["admission_history"])
+
+        self.owner.close()
+        self.owner = self.make_owner()
+        tick = self.owner.tick()
+        self.assertEqual(self.read.calls, 2,
+                         "a legacy hold without its read basis remained quiet")
+        self.assertEqual((tick["held"], tick["retry_later"]), ([1], []))
+        current = self.owner.load_state()
+        held = current["held"]["1"]
+        self.assertEqual(held["failing"], expected["failing"])
+        self.assertEqual(held["admission_source"], expected["admission_source"])
+        self.assertTrue(held.get("admission_read_basis"))
+        self.assertTrue(held.get("admission_read_key"))
+        self.assertNotIn("1", current.get("admission_retries", {}))
+        later = [entry for identity, entry in current["admission_history"].items()
+                 if identity not in original["admission_history"]]
+        self.assertEqual(len(later), 1)
+        self.assertEqual((later[0]["base"], later[0]["exit"],
+                          later[0]["terminal_disposition"], later[0]["read_failed"]),
+                         (self.repo.main_sha(), 1, "HELD", False))
+        for identity, occurrence in original["admission_history"].items():
+            self.assertEqual(current["admission_history"][identity], occurrence)
+
+        quiet = self.owner.tick()
+        self.assertEqual(quiet["held_unchanged"], [1])
+        self.assertEqual(self.read.calls, 2)
+        self.assertEqual(self.owner.load_state()["admission_history"],
+                         current["admission_history"])
 
 
 if __name__ == "__main__":

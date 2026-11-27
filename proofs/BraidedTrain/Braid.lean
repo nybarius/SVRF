@@ -116,7 +116,7 @@ theorem end_gate_leaves_prefix_ungated (gate : Tree â†’ Prop) (base : Tree) (hâ‚
 
 /-! ## Retry -/
 
-/-- What a verdict read: the head and the base branch's content over the watched paths. -/
+/-- What a verdict read: the head and its watched source observations. -/
 structure RetryKey (Sha Watched : Type) where
   head : Sha
   watched : Watched

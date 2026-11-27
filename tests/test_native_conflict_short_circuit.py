@@ -14,10 +14,23 @@ from unittest import mock
 
 from fakes import Clock, DaemonGitHub, DaemonRepo, FakeGate
 from svrf.admission import Admission
+from svrf.admission_attempt import _digest
 from svrf.daemon import Daemon
 from svrf.errors import ReadFailed
 from svrf.git import RealGit
 from svrf import rules
+
+
+class CountedAdmission(Admission):
+    """Count full admission separately from native merge preparation."""
+
+    def __init__(self, *args, **kwargs):
+        Admission.__init__(self, *args, **kwargs)
+        self.calls = []
+
+    def __call__(self, head, base, pr=None, *, cancelled=None):
+        self.calls.append([base, head])
+        return Admission.__call__(self, head, base, pr, cancelled=cancelled)
 
 
 class NativeConflictControls(unittest.TestCase):
@@ -116,15 +129,31 @@ class NativeConflictControls(unittest.TestCase):
         repo.changed_paths = lambda *args: ["lane:31"]
         native_state = {"blocked": True, "failure": None}
         native_calls = []
+        tree_commits = {}
+
         def native(base, head):
             native_calls.append([base, head])
             if native_state["failure"] is not None:
                 raise native_state["failure"]
-            return {"status": "CONFLICT" if native_state["blocked"] else "CLEAN",
-                    "conflicts": ["lane:31"] if native_state["blocked"] else []}
+            if native_state["blocked"]:
+                return {"status": "CONFLICT", "conflicts": ["lane:31"]}
+            step = repo.union_step(base, head)
+            if step.commit is not None and step.tree is not None:
+                tree_commits[step.tree] = step.commit
+            return {"status": step.status, "conflicts": step.conflicts,
+                    "tree": step.tree}
+
+        original_watch = repo.watch_digest
+
+        def watch_digest(commit, paths):
+            # Read the existing lane model at its original commit or returned tree.
+            # Encode the actual projection, including its observed empty value.
+            return _digest(original_watch(tree_commits.get(commit, commit), paths))
+
         repo.merge_preview = native
+        repo.watch_digest = watch_digest
         command, marker = self.command("receiver", code=command_exit, consumed=consumed)
-        admission = Admission(repo, command=command)
+        admission = CountedAdmission(repo, command=command)
         clock = Clock()
         owner = Daemon(repo, DaemonGitHub(repo), FakeGate(repo), admission,
                        state_dir=self.case / "state", receipts=self.case / "receipts",
@@ -228,7 +257,8 @@ class NativeConflictControls(unittest.TestCase):
                              held=owner.load_state()["held"]["31"])
 
     def test_resolved_receiver_preserves_real_failure_and_ordinary_source_watch(self):
-        owner, repo, native, calls, marker = self.fake_owner()
+        owner, repo, native, native_calls, marker = self.fake_owner()
+        calls = owner.admission.calls
         owner.tick()
         self.assertFalse(marker.exists())
         native["blocked"] = False
@@ -240,16 +270,26 @@ class NativeConflictControls(unittest.TestCase):
         self.assertEqual(held["failing"], ["check:real-check-failed"])
         self.assertNotIn("native_conflict_base", held)
         self.assertEqual(len(calls), 2)
+        resolved_command = json.loads(marker.read_text())
+        self.assertEqual(resolved_command["base"], repo.main)
+        native_before = len(native_calls)
+
         repo.main = repo._new({0, 99, 100}, (repo.main,))
         unrelated = owner.tick()
         self.assertEqual(len(calls), 2)
         self.assertIn(31, unrelated["held_unchanged"])
+        self.assertEqual(json.loads(marker.read_text()), resolved_command)
+        self.assertGreater(len(native_calls), native_before)
+        self.assertEqual(native_calls[-1], [repo.main, repo.heads[31]])
+
         repo.main = repo._new({0, 99, 100, 32}, (repo.main,))
         owner.tick()
         self.assertEqual(len(calls), 3)
+        self.assertEqual(json.loads(marker.read_text())["base"], repo.main)
         self.assertEqual(owner.load_state()["held"]["31"]["failing"],
                          ["check:real-check-failed"])
         self.observed.update(resolved=resolved, unrelated=unrelated, calls=calls,
+                             native_calls=native_calls, resolved_command=resolved_command,
                              held=owner.load_state()["held"]["31"])
 
     def test_receiver_keeps_original_hold_when_fresh_native_read_fails(self):
