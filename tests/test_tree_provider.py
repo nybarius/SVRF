@@ -13,6 +13,15 @@ import time
 import unittest
 from pathlib import Path
 
+import os
+import subprocess
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeout
+from contextlib import contextmanager
+from unittest.mock import patch
+
+import test_admission_process as process_tests
+import test_admission_cancellation as cancellation_tests
+
 from fakes import Admission, Clock, DaemonGitHub, DaemonRepo, FakeGate, FakeGitHub, FakeRepo, git, is_union
 
 from svrf.config import ConfigError, from_dict
@@ -235,6 +244,101 @@ class RealCommand(unittest.TestCase):
                 self.assertEqual(step["tree"], self.git_tree)
                 self.assertEqual(step["tree_source"], source)
                 self.assertEqual(git(self.work, "rev-parse", f"{step['commit']}^{{tree}}"), self.git_tree)
+
+
+    @contextmanager
+    def held_tree_descendant(self, *, leader_exits):
+        ready, release, finished = (self.tmp / name for name in ("ready.json", "release", "finished.json"))
+        os.mkfifo(release)
+        release_fd = os.open(release, os.O_RDWR | os.O_NONBLOCK)
+        child_source = (
+            "import json,os,pathlib,subprocess,sys\n"
+            "first=pathlib.Path('base.txt').read_bytes()\n"
+            "head=subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip()\n"
+            f"pathlib.Path({str(ready)!r}).write_text(json.dumps({{"
+            "'parent':os.getppid(),'child':os.getpid(),'session':os.getsid(0),'before':first.hex(),'head':head}))\n"
+            "os.write(int(sys.argv[1]),b'x'); os.close(int(sys.argv[1]))\n"
+            f"with open({str(release)!r},'rb',buffering=0) as wait:\n"
+            " if wait.read(1)!=b'x': raise SystemExit('release unavailable')\n"
+            "last=pathlib.Path('base.txt').read_bytes()\n"
+            "head=subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip()\n"
+            f"pathlib.Path({str(finished)!r}).write_text(json.dumps({{'after':last.hex(),'head':head}}))\n")
+        source = (
+            "import os,subprocess,sys\n"
+            "reader,writer=os.pipe()\n"
+            f"child=subprocess.Popen([sys.executable,'-c',{child_source!r},str(writer)],"
+            "start_new_session=True,pass_fds=(writer,),stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)\n"
+            "os.close(writer)\n"
+            "if os.read(reader,1)!=b'x': raise SystemExit('child readiness unavailable')\n"
+            "os.close(reader)\n"
+            "tree=subprocess.check_output(['git','merge-tree','--write-tree',"
+            "os.environ['SVRF_MERGE_OURS'],os.environ['SVRF_MERGE_THEIRS']],text=True).splitlines()[0]\n"
+            "print(tree,flush=True)\n"
+            + ("raise SystemExit(0)\n" if leader_exits else "raise SystemExit(child.wait())\n"))
+        provider = TreeCommand(process_tests.python_command(source), self.work,
+                               timeout=30 if leader_exits else 0.5)
+        owner = {}
+        original_popen = subprocess.Popen
+
+        def observe(*args, **kwargs):
+            proc = original_popen(*args, **kwargs)
+            cwd = kwargs.get("cwd")
+            if (cwd is not None and Path(cwd) == self.work
+                    and kwargs.get("stdout") == subprocess.PIPE and kwargs.get("stderr") == subprocess.PIPE):
+                owner["process"] = proc
+            return proc
+
+        try:
+            with ThreadPoolExecutor(max_workers=1) as workers, patch(
+                    "svrf.tree_provider.subprocess.Popen", side_effect=observe):
+                future = workers.submit(provider.propose, self.b, self.a)
+                try:
+                    pids = process_tests.until(lambda: process_tests.read_json(ready))
+                    proc = process_tests.until(lambda: owner.get("process"))
+                    yield {"future": future, "process": proc, "pids": pids, "finished": finished,
+                           "release": lambda: os.write(release_fd, b"x")}
+                finally:
+                    os.write(release_fd, b"x")
+                    try:
+                        try:
+                            future.result(timeout=10)
+                        except FutureTimeout:
+                            proc = owner.get("process")
+                            if proc is not None:
+                                process_tests.AdmissionProcess.stop(proc)
+                            future.result(timeout=10)
+                    finally:
+                        pids = process_tests.read_json(ready)
+                        if pids is not None:
+                            process_tests.until(lambda: not cancellation_tests.live(pids["child"]))
+        finally:
+            os.close(release_fd)
+
+    def test_an_exited_leader_keeps_its_detached_checkout_reader(self):
+        with self.held_tree_descendant(leader_exits=True) as held:
+            pids, proc = held["pids"], held["process"]
+            original = (self.work / "base.txt").read_bytes()
+            self.assertEqual(bytes.fromhex(pids["before"]), original)
+            self.assertEqual(pids["head"], self.b)
+            self.assertEqual(pids["session"], pids["child"])
+            process_tests.until(lambda: process_tests.gone(pids["parent"]))
+            self.assertTrue(cancellation_tests.live(pids["child"]))
+            self.assertIsNone(proc.poll(), "the provider returned while its detached child still reads the checkout")
+            process_tests.until(lambda: process_tests.parent_of(pids["child"]) == proc.pid)
+            held["release"]()
+            self.assertEqual(held["future"].result(timeout=10), (self.git_tree, None))
+            self.assertEqual(process_tests.read_json(held["finished"]), {"after": original.hex(), "head": self.b})
+            self.assertTrue(all(process_tests.gone(pid) for pid in (pids["parent"], pids["child"])))
+
+    def test_a_timeout_reaps_detached_checkout_readers_before_returning(self):
+        with self.held_tree_descendant(leader_exits=False) as held:
+            pids = held["pids"]
+            self.assertEqual(bytes.fromhex(pids["before"]), (self.work / "base.txt").read_bytes())
+            self.assertEqual(pids["head"], self.b)
+            self.assertEqual(pids["session"], pids["child"])
+            self.assertEqual(held["future"].result(timeout=10), (None, "PROVIDER_TIMEOUT"))
+            self.assertTrue(all(process_tests.gone(pid) for pid in (pids["parent"], pids["child"])),
+                            "a timed-out provider returned with a live member of its original process family")
 
 
 if __name__ == "__main__":
