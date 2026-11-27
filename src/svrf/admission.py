@@ -29,7 +29,7 @@ from typing import Callable
 from . import history, rules
 from .admission_attempt import command_environment, command_started, command_finished
 from .errors import ReadFailed
-from .locks import SlotPool
+from .locks import SlotPool, worktree_lock
 from .redact import redact
 
 UNAVAILABLE_EXITS = (126, 127)
@@ -206,8 +206,9 @@ class Admission:
         the shared clone already has is checked out-able here too."""
         if not (slot / ".git").exists():
             slot.parent.mkdir(parents=True, exist_ok=True)
-            subprocess.run(["git", "-C", str(self.git.root), "worktree", "add", "-q", "--detach", "-f",
-                            str(slot), "HEAD"], check=True, capture_output=True)
+            with worktree_lock(self.git.root):
+                subprocess.run(["git", "-C", str(self.git.root), "worktree", "add", "-q", "--detach", "-f",
+                                str(slot), "HEAD"], check=True, capture_output=True)
         return slot
 
     def _run_command(self, head: str, base: str, root: Path, pr: int | None = None, *, cancelled=None) -> tuple[list[str], list[dict] | None]:

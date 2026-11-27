@@ -448,6 +448,45 @@ class WorktreeCreation(Repo):
                 self.assertEqual(git(slot, "show", "HEAD:src/app.py"),
                                  (slot / "src/app.py").read_text().strip())
 
+    def test_bare_and_linked_views_hold_the_same_registration_for_path_whitespace(self):
+        from unittest.mock import patch
+        from svrf import locks
+
+        original_flocked = locks.flocked
+        identities = []
+
+        @contextlib.contextmanager
+        def observed(path, *args, **kwargs):
+            before = locks._OWN_FDS.copy()
+            with original_flocked(path, *args, **kwargs) as held:
+                self.assertTrue(held)
+                descriptor, = locks._OWN_FDS - before
+                physical = os.fstat(descriptor)
+                identities.append((physical.st_dev, physical.st_ino))
+                yield held
+
+        original_value = (self.work / "src/app.py").read_bytes()
+        for label, suffix in (("space", " "), ("carriage-return", "\r"), ("newline", "\n")):
+            with self.subTest(path_suffix=label):
+                bare = self.tmp / (label + ".git" + suffix)
+                linked = self.tmp / (label + "-linked")
+                git(self.tmp, "clone", "-q", "--bare", str(self.work), str(bare))
+                git(bare, "worktree", "add", "-q", "--detach", str(linked), self.head)
+                with patch.object(locks, "flocked", observed):
+                    with locks.worktree_lock(bare):
+                        bare_identity = identities[-1]
+                        self.assertEqual(git(bare, "rev-parse", "HEAD"), self.head)
+                        retained = subprocess.run(
+                            ["git", "-C", str(bare), "show", "HEAD:src/app.py"],
+                            check=True, capture_output=True)
+                        self.assertEqual(retained.stdout, original_value)
+                    with locks.worktree_lock(linked):
+                        linked_identity = identities[-1]
+                        self.assertEqual(git(linked, "rev-parse", "HEAD"), self.head)
+                        self.assertEqual((linked / "src/app.py").read_bytes(), original_value)
+                self.assertEqual(bare_identity, linked_identity,
+                                 "the two original Git views held different registration files")
+
 
 class GlobSemantics(unittest.TestCase):
     def test_globs(self):
