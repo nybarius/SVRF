@@ -130,6 +130,25 @@ class Admission:
         self.pool = SlotPool(Path(pool), slots) if pool is not None else None
 
     def __call__(self, head: str, base: str, pr: int | None = None, *, cancelled=None) -> dict:
+        value = self._prepare(head, base, cancelled=cancelled)
+        if value["verdict"] == "LANDED" or "checks_not_run" in value:
+            return value
+        consumed = None
+        if self.command:
+            try:
+                lines, consumed = self._command(head, base, pr, cancelled=cancelled)
+            except ReadFailed as failure:
+                if failure.read_basis is not None:
+                    failure.read_basis = {**failure.read_basis, "prepared": value}
+                raise
+            value["residuals"] += lines
+            value["verdict"] = "HELD" if value["residuals"] else "MERGEABLE"
+        if consumed is not None:
+            value["consumed"] = consumed
+        return value
+
+    def _prepare(self, head: str, base: str, *, cancelled=None) -> dict:
+        """The original native checks before a configured command may run."""
         if cancelled is not None and cancelled.is_set():
             raise ReadFailed("ADMISSION_CANCELLED")
         if self.git.is_ancestor(head, base):
@@ -153,14 +172,7 @@ class Admission:
                 raise ReadFailed("ADMISSION_CANCELLED")
             return {"verdict": "HELD", "residuals": residuals, "changed": changed,
                     "native_conflict_base": base, "checks_not_run": ["admission_command"]}
-        consumed = None
-        if self.command:
-            lines, consumed = self._command(head, base, pr, cancelled=cancelled)
-            residuals += lines
-        value = {"verdict": "HELD" if residuals else "MERGEABLE", "residuals": residuals, "changed": changed}
-        if consumed is not None:
-            value["consumed"] = consumed
-        return value
+        return {"verdict": "HELD" if residuals else "MERGEABLE", "residuals": residuals, "changed": changed}
 
     def _command(self, head: str, base: str, pr: int | None = None, *, cancelled=None) -> tuple[list[str], list[dict] | None]:
         if self.pool is None:
@@ -224,12 +236,18 @@ class Admission:
             command_finished(proc.returncode)
         done = subprocess.CompletedProcess(proc.args, proc.returncode, stdout, stderr)
         if done.returncode in UNAVAILABLE_EXITS:
+            reason = f"ADMISSION_COMMAND_UNAVAILABLE:{done.returncode}"
             if done.returncode == 126:
                 named = [line[:200] for line in (ln.strip() for ln in redact(done.stdout + done.stderr, env).splitlines())
                          if UNAVAILABLE_CLASS.match(line[:200])]
                 if named:
-                    raise ReadFailed(named[-1])
-            raise ReadFailed(f"ADMISSION_COMMAND_UNAVAILABLE:{done.returncode}")
+                    reason = named[-1]
+            try:
+                consumed = _read_basis(reads, head, base)
+            except ReadFailed:
+                consumed = None  # Invalid optional evidence cannot narrow this original failure.
+            basis = None if consumed is None else {"head": head, "base": base, "consumed": consumed}
+            raise ReadFailed(reason, read_basis=basis)
         consumed = _read_basis(reads, head, base)
         if done.returncode == 0:
             return [], consumed
