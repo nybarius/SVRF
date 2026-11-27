@@ -17,10 +17,11 @@ from __future__ import annotations
 
 import os
 import re
-import signal
 import subprocess
+import sys
 from pathlib import Path
 
+from .admission import _stop_command
 from .redact import redact
 
 TREE_ID = re.compile(r"[0-9a-f]{40}|[0-9a-f]{64}")
@@ -52,8 +53,11 @@ class TreeCommand:
         env = {**os.environ, "SVRF_MERGE_OURS": ours, "SVRF_MERGE_THEIRS": theirs,
                "SVRF_MERGE_BASES": " ".join(bases), "SVRF_CLONE": str(self.root)}
         try:
-            # Its own session, so a timeout kills everything the command started.
-            proc = subprocess.Popen(["bash", "-c", self.command], cwd=str(self.root), env=env,
+            # The original family owner retains detached readers through return
+            # and timeout cleanup, even after the command leader has exited.
+            supervisor = str(Path(__file__).with_name("_admission_process.py").resolve())
+            proc = subprocess.Popen([sys.executable, "-I", supervisor, self.command],
+                                    cwd=str(self.root), env=env,
                                     stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
                                     start_new_session=True)
         except OSError as error:
@@ -61,15 +65,11 @@ class TreeCommand:
         try:
             stdout, stderr = proc.communicate(timeout=self.timeout)
         except subprocess.TimeoutExpired:
-            try:
-                os.killpg(proc.pid, signal.SIGKILL)
-            except ProcessLookupError:
-                pass
-            try:
-                proc.communicate(timeout=5)
-            except subprocess.TimeoutExpired:
-                pass
+            _stop_command(proc)
             return None, "PROVIDER_TIMEOUT"
+        except BaseException:
+            _stop_command(proc)
+            raise
         if proc.returncode != 0:
             tail = [line.strip() for line in redact(stderr, env).splitlines() if line.strip()]
             return None, f"PROVIDER_EXIT:{proc.returncode}" + (f":{tail[-1][:160]}" if tail else "")
