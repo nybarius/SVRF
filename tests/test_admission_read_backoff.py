@@ -333,14 +333,20 @@ class ReadBasisBackoff(unittest.TestCase):
                       clock=self.clock, sleep=self.clock.sleep, repair=False, reland=False,
                       train_options={"poll_seconds": 0})
 
-    def command(self, evidence="valid", *, terminal=True):
+    def command(self, evidence="valid", *, terminal=True, composed=False):
         project = Path(__file__).resolve().parents[1]
         code = f"""
 import json, os, subprocess, sys, time
 from pathlib import Path
 sys.path[:0] = {[str(project / "src"), str(project / "tests")]!r}
 from test_admission_progress_projection import beginning, encode_events
-selected = subprocess.check_output(["git", "show", os.environ["SVRF_BASE"] + ":read/one"])
+from svrf.git import RealGit
+reference = os.environ["SVRF_BASE"]
+if {composed!r}:
+    merged = RealGit(Path.cwd()).merge_preview(reference, os.environ["SVRF_HEAD"])
+    assert merged["status"] == "CLEAN", merged
+    reference = merged["tree"]
+selected = subprocess.check_output(["git", "show", reference + ":read/one"])
 print(selected.decode(), end="")
 value = {{"schema": "svrf.admission-reads/1",
           "head": os.environ["SVRF_HEAD"], "base": os.environ["SVRF_BASE"],
@@ -527,6 +533,81 @@ raise SystemExit(126)
                  if identity not in original["admission_history"]]
         self.assertEqual(len(later), 1)
         self.assertEqual(later[0]["result"]["checks_not_run"], ["admission_command"])
+        for identity, occurrence in original["admission_history"].items():
+            self.assertEqual(current["admission_history"][identity], occurrence)
+
+    def test_equal_base_tree_reopens_a_changed_clean_composed_read(self):
+        def contents(left, right):
+            return left + "\n" + "".join(f"unchanged {n}\n" for n in range(8)) + right + "\n"
+
+        # A -> M -> H; A -> B0. The two edits are separated by unchanged lines.
+        self.git("checkout", "-q", "candidate")
+        selected = self.source / "read/one"
+        selected.write_text(contents("A", "B"))
+        ancestor = self.commit()
+        selected.write_text(contents("X", "Y"))
+        middle = self.commit()
+        selected.write_text(contents("A", "Y"))
+        self.head = self.commit()
+        self.git("checkout", "-q", "main")
+        self.git("merge", "--ff-only", "-q", ancestor)
+        selected.write_text(contents("X", "B"))
+        base = self.commit()
+        self.repo.heads[1] = self.head
+        self.repo.branches["pr-1"] = self.head
+        self.git("push", "-q", "origin", "main", "candidate:refs/pull/1/head")
+        self.read.command = self.command(composed=True)
+
+        self.assertEqual(self.git("merge-base", base, self.head), ancestor)
+        first = self.repo.merge_preview(base, self.head)
+        self.assertEqual(first["status"], "CLEAN")
+        self.assertEqual(self.git("show", first["tree"] + ":read/one"), contents("X", "Y").strip())
+        original = self.fail_three()
+        failure = original["admission_retries"]["1"]
+        self.assertEqual(failure["coverage_status"], "OBSERVED")
+        self.assertEqual(failure["no_progress_failures"], 3)
+        self.assertIn("retry_key", failure)
+
+        # An unread composed path must not turn the whole merged tree into the key.
+        base = self.move_unread("unread composed change")
+        unread = self.repo.merge_preview(base, self.head)
+        self.assertEqual(unread["status"], "CLEAN")
+        self.assertNotEqual(unread["tree"], first["tree"])
+        self.assertEqual(self.git("show", unread["tree"] + ":read/one"), contents("X", "Y").strip())
+        self.assertLess(self.clock(), failure["retry_at"])
+        self.owner.tick()
+        self.assertEqual(self.read.calls, 3, "an unread composed path paid the failed command again")
+        retained = self.owner.load_state()
+        self.assertEqual(retained["admission_retries"]["1"], failure)
+        self.assertEqual(retained["admission_history"], original["admission_history"])
+
+        # B1 keeps B0's tree but adds M as a parent: both native merges are clean.
+        tree = self.git("rev-parse", base + "^{tree}")
+        watched = self.repo.watch_digest(base, ["read/one"])
+        changed = self.repo.changed_paths(base, self.head)
+        moved = self.git("commit-tree", tree, "-p", base, "-p", middle, "-m", "changed merge base")
+        self.git("reset", "--hard", moved)
+        self.git("push", "-q", "origin", "main")
+        self.assertEqual(self.git("rev-parse", moved + "^{tree}"), tree)
+        self.assertEqual(self.repo.watch_digest(moved, ["read/one"]), watched)
+        self.assertEqual(changed, ["read/one"])
+        self.assertEqual(self.repo.changed_paths(moved, self.head), changed)
+        self.assertFalse(self.repo.is_ancestor(self.head, moved))
+        self.assertEqual(self.git("merge-base", moved, self.head), middle)
+        composed = self.repo.merge_preview(moved, self.head)
+        self.assertEqual(composed["status"], "CLEAN")
+        self.assertNotEqual(composed["tree"], unread["tree"])
+        self.assertEqual(self.git("show", composed["tree"] + ":read/one"), contents("A", "B").strip())
+
+        self.assertLess(self.clock(), failure["retry_at"])
+        tick = self.owner.tick()
+        self.assertEqual(self.read.calls, 4, "a changed clean composed read reused the failed command")
+        self.assertEqual(tick["retry_later"], [1])
+        self.assertNotIn(1, tick.get("deferred", []))
+        current = self.owner.load_state()
+        self.assertEqual(current["admission_retries"]["1"]["no_progress_failures"], 1)
+        self.assertIsNone(current["admission_retries"]["1"]["retry_at"])
+        self.assertEqual(len(current["admission_history"]), len(original["admission_history"]) + 1)
         for identity, occurrence in original["admission_history"].items():
             self.assertEqual(current["admission_history"][identity], occurrence)
 
