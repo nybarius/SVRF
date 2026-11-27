@@ -247,7 +247,8 @@ def admission_decision(value: dict, is_union: Callable[[str], bool] = lambda p: 
 
 INFRA_PATTERN = re.compile(
     r"cannot lock ref|unable to update local ref|Could not resolve host|Connection (?:timed out|reset)|"
-    r"No space left on device|Resource temporarily unavailable|Killed\b|failed to fetch", re.IGNORECASE)
+    r"No space left on device|Resource temporarily unavailable|Killed\b|failed to fetch|"
+    r"^INTAKE_OUTPUT_UNOBSERVED:ADMISSION_PROCESS_[A-Z_]+$", re.IGNORECASE)
 
 
 def gate_infra_failure(text: str, extra: list[str] | None = None) -> str | None:
