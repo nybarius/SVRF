@@ -129,7 +129,6 @@ class CommandGate:
             status.update(index_flags="skipped", checkout="skipped")
             with _phase(seconds, status, "worktree_create"):
                 slot.parent.mkdir(parents=True, exist_ok=True)
-                subprocess.run(["git", "-C", str(self.clone), "worktree", "prune"], capture_output=True)
                 self._git("worktree", "add", "-q", "--detach", "-f", str(slot), commit)
         else:
             status["worktree_create"] = "skipped"
