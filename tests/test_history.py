@@ -365,6 +365,90 @@ class AdmissionConcurrency(Repo):
         self.assertEqual(len([p for p in pool.iterdir() if p.is_dir()]), 2)
 
 
+class WorktreeCreation(Repo):
+    """Creating one owner's slot must preserve another worktree's later reads."""
+
+    def setUp(self):
+        super().setUp()
+        self.write("src/app.py", "value = 2\n")
+        self.head = self.commit("feat: next value")
+
+    def create_slot(self, owner, pool):
+        if owner == "admission":
+            command = ('git checkout -q --detach -f "$SVRF_HEAD" && '
+                       'test "$(git rev-parse HEAD)" = "$SVRF_HEAD"')
+            result = Admission(self.rg(), command=command, pool=pool)(self.head, self.base)
+            self.assertEqual(result["verdict"], "MERGEABLE", result)
+        else:
+            from svrf.gate import CommandGate
+            gate = CommandGate(self.work, pool, 1,
+                               ['test "$(git rev-parse HEAD)" = "$SVRF_COMMIT"'],
+                               logs=pool.parent / "logs")
+            result = gate.run(self.base, self.head)
+            self.assertTrue(result["green"], result)
+        self.assertEqual(git(pool / "slot-0", "rev-parse", "HEAD"), self.head)
+        self.assertEqual(git(self.work, "rev-parse", "HEAD"), self.head)
+
+    def test_creating_own_slot_preserves_another_worktrees_later_read(self):
+        for owner in ("admission", "gate"):
+            with self.subTest(owner=owner):
+                root = self.tmp / owner
+                sibling, away = root / "other", root / "other-away"
+                git(self.work, "worktree", "add", "-q", "--detach", str(sibling), self.base)
+                original_head = git(sibling, "rev-parse", "HEAD")
+                original_value = (sibling / "src/app.py").read_bytes()
+                sibling.rename(away)
+                try:
+                    self.create_slot(owner, root / "pool")
+                finally:
+                    away.rename(sibling)
+                received = subprocess.run(["git", "-C", str(sibling), "rev-parse", "HEAD"],
+                                          capture_output=True, text=True)
+                self.assertEqual(received.returncode, 0, (received.stdout, received.stderr))
+                self.assertEqual(received.stdout.strip(), original_head)
+                self.assertEqual((sibling / "src/app.py").read_bytes(), original_value)
+                self.assertEqual(git(sibling, "show", "HEAD:src/app.py"),
+                                 original_value.decode().strip())
+
+    def test_missing_unlocked_slot_is_recovered_by_its_original_add(self):
+        for owner in ("admission", "gate"):
+            with self.subTest(owner=owner):
+                root = self.tmp / owner
+                pool = root / "pool"
+                slot = pool / "slot-0"
+                git(self.work, "worktree", "add", "-q", "--detach", str(slot), self.base)
+                self.assertEqual(git(slot, "rev-parse", "HEAD"), self.base)
+                slot.rename(root / "old-slot")
+                self.create_slot(owner, pool)
+                paths = [line for line in git(self.work, "worktree", "list", "--porcelain").splitlines()
+                         if line == f"worktree {slot}"]
+                self.assertEqual(paths, [f"worktree {slot}"])
+
+    def test_missing_locked_slot_keeps_its_original_refusal_and_registration(self):
+        for owner in ("admission", "gate"):
+            with self.subTest(owner=owner):
+                root = self.tmp / owner
+                pool = root / "pool"
+                slot, away = pool / "slot-0", root / "locked-away"
+                git(self.work, "worktree", "add", "-q", "--detach", str(slot), self.base)
+                git(self.work, "worktree", "lock", "--reason", "retained owner", str(slot))
+                registration = Path(git(slot, "rev-parse", "--absolute-git-dir"))
+                original_lock = (registration / "locked").read_bytes()
+                slot.rename(away)
+                try:
+                    with self.assertRaises(subprocess.CalledProcessError) as refused:
+                        self.create_slot(owner, pool)
+                    self.assertNotEqual(refused.exception.returncode, 0)
+                    self.assertTrue(refused.exception.stderr)
+                    self.assertFalse(slot.exists())
+                    self.assertEqual((registration / "locked").read_bytes(), original_lock)
+                finally:
+                    away.rename(slot)
+                self.assertEqual(git(slot, "rev-parse", "HEAD"), self.base)
+                self.assertEqual(git(slot, "show", "HEAD:src/app.py"),
+                                 (slot / "src/app.py").read_text().strip())
+
+
 class GlobSemantics(unittest.TestCase):
     def test_globs(self):
         s = PathSet(["tests/**", "*.md", "src/**/gen_*.py", "requirements*.txt"])
