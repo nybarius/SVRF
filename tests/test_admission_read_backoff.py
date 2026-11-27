@@ -633,7 +633,7 @@ raise SystemExit(126)
         def contents(left, right):
             return left + "\n" + "".join(f"unchanged {n}\n" for n in range(8)) + right + "\n"
 
-        # The original real-Git separator: A -> M -> H and A -> B0.
+        # The original real-Git history: A -> M -> H and A -> B0.
         self.git("checkout", "-q", "candidate")
         selected = self.source / "read/one"
         selected.write_text(contents("A", "B"))
@@ -731,6 +731,93 @@ raise SystemExit(126)
         for identity, occurrence in original["admission_history"].items():
             self.assertEqual(current["admission_history"][identity], occurrence)
 
+
+
+    def test_an_ordinary_hold_without_a_qualified_basis_tracks_the_full_base(self):
+        for evidence in ("absent", "empty", "other-commit"):
+            with self.subTest(evidence=evidence):
+                self.read.command = self.command(evidence, composed=True, held=True)
+                before = self.read.calls
+                tick = self.owner.tick()
+                self.assertEqual(self.read.calls, before + 1)
+                self.assertEqual((tick["held"], tick["retry_later"]), ([1], []))
+                original = self.owner.load_state()
+                held = original["held"]["1"]
+                self.assertEqual(held["reason"], "ADMISSION_HELD")
+                self.assertNotIn("1", original.get("admission_retries", {}))
+                base = self.repo.main_sha()
+                watched = self.repo.watch_digest(base, held["watch"])
+
+                quiet = self.owner.tick()
+                self.assertEqual(quiet["held_unchanged"], [1])
+                self.assertEqual(self.read.calls, before + 1)
+                self.assertEqual(self.owner.load_state()["admission_history"],
+                                 original["admission_history"])
+
+                moved = self.move_unread("full-base hold: " + evidence)
+                self.assertEqual(self.repo.watch_digest(moved, held["watch"]), watched)
+                tick = self.owner.tick()
+                self.assertEqual(self.read.calls, before + 2,
+                                 "an unqualified hold reused only its selected base paths")
+                self.assertEqual((tick["held"], tick["retry_later"]), ([1], []))
+                current = self.owner.load_state()
+                self.assertEqual(current["held"]["1"]["base_sha"], moved)
+                self.assertEqual(current["held"]["1"]["failing"], held["failing"])
+                self.assertNotIn("1", current.get("admission_retries", {}))
+                later = [entry for identity, entry in current["admission_history"].items()
+                         if identity not in original["admission_history"]]
+                self.assertEqual(len(later), 1)
+                self.assertEqual((later[0]["base"], later[0]["exit"],
+                                  later[0]["terminal_disposition"], later[0]["read_failed"]),
+                                 (moved, 1, "HELD", False))
+                for identity, occurrence in original["admission_history"].items():
+                    self.assertEqual(current["admission_history"][identity], occurrence)
+
+    def test_a_legacy_hold_is_received_once_with_the_unchanged_checker(self):
+        self.read.command = self.command(composed=True, held=True)
+        tick = self.owner.tick()
+        self.assertEqual(self.read.calls, 1)
+        self.assertEqual((tick["held"], tick["retry_later"]), ([1], []))
+        original = self.owner.load_state()
+        legacy = self.owner.load_state()
+        optional = ("admission_read_basis", "admission_read_key")
+        for field in optional:
+            legacy["held"]["1"].pop(field, None)
+        expected = {key: value for key, value in original["held"]["1"].items()
+                    if key not in optional}
+        self.assertEqual(legacy["held"]["1"], expected)
+        self.owner.save(legacy, tick)
+        saved = self.owner.load_state()
+        self.assertEqual(saved["held"]["1"], expected)
+        self.assertEqual(saved["admission_history"], original["admission_history"])
+
+        self.owner.close()
+        self.owner = self.make_owner()
+        tick = self.owner.tick()
+        self.assertEqual(self.read.calls, 2,
+                         "a legacy hold without its read basis remained quiet")
+        self.assertEqual((tick["held"], tick["retry_later"]), ([1], []))
+        current = self.owner.load_state()
+        held = current["held"]["1"]
+        self.assertEqual(held["failing"], expected["failing"])
+        self.assertEqual(held["admission_source"], expected["admission_source"])
+        self.assertTrue(held.get("admission_read_basis"))
+        self.assertTrue(held.get("admission_read_key"))
+        self.assertNotIn("1", current.get("admission_retries", {}))
+        later = [entry for identity, entry in current["admission_history"].items()
+                 if identity not in original["admission_history"]]
+        self.assertEqual(len(later), 1)
+        self.assertEqual((later[0]["base"], later[0]["exit"],
+                          later[0]["terminal_disposition"], later[0]["read_failed"]),
+                         (self.repo.main_sha(), 1, "HELD", False))
+        for identity, occurrence in original["admission_history"].items():
+            self.assertEqual(current["admission_history"][identity], occurrence)
+
+        quiet = self.owner.tick()
+        self.assertEqual(quiet["held_unchanged"], [1])
+        self.assertEqual(self.read.calls, 2)
+        self.assertEqual(self.owner.load_state()["admission_history"],
+                         current["admission_history"])
 
 
 if __name__ == "__main__":
