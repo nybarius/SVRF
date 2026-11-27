@@ -260,6 +260,12 @@ class CommandLine(unittest.TestCase):
 
 
     def test_worktree_lock_keeps_descendants_until_return_or_termination(self):
+        self._command_keeps_descendants_until_return_or_termination("worktree-lock")
+
+    def test_process_command_keeps_descendants_until_return_or_termination(self):
+        self._command_keeps_descendants_until_return_or_termination("process-command")
+
+    def _command_keeps_descendants_until_return_or_termination(self, entry):
         import fcntl
         import sys
         import test_admission_process as process_tests
@@ -305,9 +311,11 @@ class CommandLine(unittest.TestCase):
                     "os.close(reader)\n"
                     "print('original leader',flush=True)\n"
                     "raise SystemExit(23)\n")
+                prefix = [sys.executable, "-m", "svrf", entry]
+                if entry == "worktree-lock":
+                    prefix.extend(["--root", str(clone)])
                 proc = subprocess.Popen(
-                    [sys.executable, "-m", "svrf", "worktree-lock", "--root", str(clone), "--",
-                     sys.executable, "-c", command],
+                    [*prefix, "--", sys.executable, "-c", command],
                     cwd=clone, env={**os.environ, "PYTHONPATH": str(ROOT / "src")},
                     stdout=subprocess.PIPE, stderr=subprocess.PIPE)
                 try:
@@ -323,7 +331,10 @@ class CommandLine(unittest.TestCase):
                     with open(path, "a+") as held:
                         current = os.fstat(held.fileno())
                         self.assertEqual((current.st_dev, current.st_ino), (physical.st_dev, physical.st_ino))
-                        with self.assertRaises(BlockingIOError):
+                        if entry == "worktree-lock":
+                            with self.assertRaises(BlockingIOError):
+                                fcntl.flock(held, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                        else:
                             fcntl.flock(held, fcntl.LOCK_EX | fcntl.LOCK_NB)
                     if terminate:
                         proc.terminate()
@@ -348,6 +359,12 @@ class CommandLine(unittest.TestCase):
                         os.close(release_fd)
 
     def test_worktree_lock_preserves_literal_argv_status_and_unavailable_root(self):
+        self._command_preserves_literal_argv_and_status("worktree-lock")
+
+    def test_process_command_preserves_literal_argv_streams_and_status_without_config_or_git(self):
+        self._command_preserves_literal_argv_and_status("process-command")
+
+    def _command_preserves_literal_argv_and_status(self, entry):
         import signal
         import sys
 
@@ -369,25 +386,30 @@ class CommandLine(unittest.TestCase):
             env = {**os.environ, "PYTHONPATH": str(ROOT / "src"),
                    "PATH": str(bindir) + os.pathsep + os.environ["PATH"],
                    "SVRF_ORIGINAL_VALUE": "original environment"}
-            prefix = [sys.executable, "-m", "svrf", "--config", str(root / "absent.toml"),
-                      "worktree-lock", "--root", str(clone), "--"]
+            working = clone if entry == "worktree-lock" else root
+            prefix = [sys.executable, "-m", "svrf", "--config", str(root / "absent.toml"), entry]
+            if entry == "worktree-lock":
+                prefix.extend(["--root", str(clone)])
+            prefix.append("--")
             for name, status in (("if", 0), ("NAME=value", 17)):
                 with self.subTest(command=name):
                     executable = bindir / name
                     executable.write_text(program)
                     executable.chmod(0o755)
-                    done = subprocess.run([*prefix, name, str(status), *arguments], cwd=clone, env=env,
+                    done = subprocess.run([*prefix, name, str(status), *arguments], cwd=working, env=env,
                                           input=original, capture_output=True)
                     self.assertEqual(done.returncode, status, (done.stdout, done.stderr))
                     self.assertEqual(json.loads(done.stdout), {
-                        "argv": arguments, "cwd": str(clone), "environment": env["SVRF_ORIGINAL_VALUE"],
+                        "argv": arguments, "cwd": str(working), "environment": env["SVRF_ORIGINAL_VALUE"],
                         "stdin": original.hex()})
                     self.assertEqual(done.stderr, original)
             signaled = subprocess.run(
                 [*prefix, sys.executable, "-c", "import os,signal; os.kill(os.getpid(),signal.SIGTERM)"],
-                cwd=clone, env=env, capture_output=True)
+                cwd=working, env=env, capture_output=True)
             self.assertEqual(signaled.returncode, -signal.SIGTERM, (signaled.stdout, signaled.stderr))
             self.assertEqual((signaled.stdout, signaled.stderr), (b"", b""))
+            if entry == "process-command":
+                return
             sentinel = root / "retained"
             sentinel.write_bytes(original)
             unavailable = subprocess.run(
