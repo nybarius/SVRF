@@ -12,11 +12,14 @@
     svrf doctor              read-only checks: token, branch protection, gate, rate budget
     svrf mcp                 an MCP server over stdio for coding agents (see docs/AGENTS.md)
     svrf dashboard --receipts DIR --out DIR   a static site from round receipts (no config needed)
+    svrf worktree-lock --root ROOT -- COMMAND ...   hold shared Git registration for a command
 
 Every command reads `--config` (default: $SVRF_CONFIG, else ./svrf.toml); `init` (which
-creates that file) and `dashboard` (which reads only receipts) are the exceptions.
+creates that file), `dashboard` (which reads only receipts), and `worktree-lock`
+(which reads the supplied Git root) are the exceptions.
 Exit codes: 0 ok, 1 a landed tree did not match its gated tree, 2 bad configuration,
-3 another train owns the lock.
+3 another train owns the lock. `worktree-lock` preserves its command's status and
+returns 126 when registration or command custody cannot be acquired.
 """
 
 from __future__ import annotations
@@ -25,7 +28,9 @@ import argparse
 import dataclasses
 import json
 import os
+import shlex
 import signal
+import subprocess
 import sys
 import time
 from pathlib import Path
@@ -36,7 +41,7 @@ from .config import ConfigError, load
 from .errors import ReadFailed
 from .git import RealGit
 from .github import RealGitHub
-from .locks import owner_lock
+from .locks import owner_lock, worktree_lock
 from .train import Train
 
 NEXT_STEPS = {
@@ -236,7 +241,25 @@ def main(argv: list[str] | None = None, *, github=None) -> int:
     init_p.add_argument("--base", default=None, help="base branch pull requests land on (default: detected)")
     init_p.add_argument("--gate", default=None, help="gate command (default: detected from the project type)")
     init_p.add_argument("--dir", default=".", help="project directory (default: the current directory)")
+    registration = sub.add_parser("worktree-lock", help="hold shared Git registration for a command")
+    registration.add_argument("--root", required=True, help="an existing Git working tree or bare repository")
+    registration.add_argument("argv", nargs=argparse.REMAINDER, help="command and arguments after --")
     args = ap.parse_args(argv)
+
+    if args.command == "worktree-lock":
+        from . import _admission_process
+
+        command = args.argv[1:] if args.argv[:1] == ["--"] else args.argv
+        if not command:
+            ap.error("worktree-lock requires a command after --")
+        try:
+            with worktree_lock(args.root):
+                # This fresh CLI process is the original family owner. Keep the
+                # registration held after leader exit until every child is reaped.
+                return _admission_process.main(["exec -- " + shlex.join(command)])
+        except (OSError, subprocess.CalledProcessError) as error:
+            print(f"svrf: worktree-lock: {error}", file=sys.stderr)
+            return 126
 
     if args.command == "dashboard":
         index = dashboard.build(Path(args.receipts), Path(args.out), title=args.title)
