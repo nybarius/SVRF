@@ -602,7 +602,7 @@ class Daemon:
         except ReadFailed:
             return None
         if (prepared.get("verdict") != "MERGEABLE" or prepared.get("residuals")
-                or "checks_not_run" in prepared or basis.get("consumed") is None):
+                or "checks_not_run" in prepared or not basis.get("consumed")):
             return None
         # The prefix observes head ancestry. Other COMMIT rows do not specify a
         # relation that this owner can safely reconstruct from an identifier.

@@ -333,7 +333,7 @@ class ReadBasisBackoff(unittest.TestCase):
                       clock=self.clock, sleep=self.clock.sleep, repair=False, reland=False,
                       train_options={"poll_seconds": 0})
 
-    def command(self):
+    def command(self, evidence="valid", *, terminal=True):
         project = Path(__file__).resolve().parents[1]
         code = f"""
 import json, os, subprocess, sys, time
@@ -345,10 +345,23 @@ print(selected.decode(), end="")
 value = {{"schema": "svrf.admission-reads/1",
           "head": os.environ["SVRF_HEAD"], "base": os.environ["SVRF_BASE"],
           "consumed": [{{"kind": "PATH", "id": "read/one"}}]}}
-Path(os.environ["SVRF_ADMISSION_READS"]).write_text(json.dumps(value))
+evidence = {evidence!r}
+if evidence == "wrong-head":
+    value["head"] = value["base"]
+elif evidence == "wrong-base":
+    value["base"] = value["head"]
+elif evidence == "other-commit":
+    value["consumed"].append({{"kind": "COMMIT", "id": value["base"]}})
+elif evidence == "empty":
+    value["consumed"] = []
+if evidence != "absent":
+    Path(os.environ["SVRF_ADMISSION_READS"]).write_text(
+        "{{" if evidence == "malformed" else json.dumps(value))
 rows = [beginning(pr=int(os.environ["SVRF_PR"]), head=os.environ["SVRF_HEAD"],
                   base=os.environ["SVRF_BASE"]),
         {{"kind": "terminal", "disposition": "UNOBSERVED", "exit": 126}}]
+if not {terminal!r}:
+    rows = rows[:1]
 for row in rows:
     row.update(wall=time.time(), monotonic=time.monotonic())
 progress = Path(os.environ["SVRF_ADMISSION_PROGRESS_FILE"])
@@ -403,6 +416,135 @@ raise SystemExit(126)
         self.assertEqual(len(current["admission_history"]), len(original["admission_history"]) + 1)
         for identity, occurrence in original["admission_history"].items():
             self.assertEqual(current["admission_history"][identity], occurrence)
+
+
+    def fail_three(self):
+        before = self.read.calls
+        for _ in range(3):
+            tick = self.owner.tick()
+            self.assertEqual(tick["retry_later"], [1])
+            self.assertEqual(tick["held"], [])
+        self.assertEqual(self.read.calls, before + 3)
+        original = self.owner.load_state()
+        self.assertIsNotNone(original["admission_retries"]["1"]["retry_at"])
+        return original
+
+    def move_unread(self, value):
+        old = self.repo.main_sha()
+        watched = self.repo.watch_digest(old, ["read/one"])
+        (self.source / "unread").write_text(value + "\n")
+        moved = self.commit()
+        self.git("push", "-q", "origin", "main")
+        self.assertNotEqual(moved, old)
+        self.assertEqual(self.repo.watch_digest(moved, ["read/one"]), watched)
+        return moved
+
+    def test_incomplete_or_unsupported_evidence_keeps_the_original_base(self):
+        for mode in ("absent", "malformed", "wrong-head", "wrong-base", "partial-progress", "other-commit", "empty"):
+            with self.subTest(mode=mode):
+                self.read.command = self.command(mode, terminal=mode != "partial-progress")
+                original = self.fail_three()
+                before = self.read.calls
+                failure = original["admission_retries"]["1"]
+                self.assertEqual(failure["reason"], "IO_POOL_CAPACITY")
+                if mode == "partial-progress":
+                    self.assertEqual(failure["coverage_status"], "UNOBSERVED")
+                    self.assertIsNone(failure["no_progress_failures"])
+                    self.assertEqual(failure["unobserved_failures"], 3)
+                else:
+                    self.assertEqual(failure["no_progress_failures"], 3)
+                self.owner.tick()
+                self.assertEqual(self.read.calls, before)
+                self.assertEqual(self.owner.load_state()["admission_retries"]["1"], failure)
+                moved = self.move_unread(mode)
+                self.owner.tick()
+                self.assertEqual(self.read.calls, before + 1)
+                current = self.owner.load_state()
+                next_failure = current["admission_retries"]["1"]
+                self.assertEqual(next_failure["base"], moved)
+                self.assertEqual(next_failure["reason"], "IO_POOL_CAPACITY")
+                self.assertIsNone(next_failure["retry_at"])
+                self.assertNotEqual(next_failure["occurrence_key"], failure["occurrence_key"])
+                for identity, occurrence in original["admission_history"].items():
+                    self.assertEqual(current["admission_history"][identity], occurrence)
+
+    def test_expired_delay_keeps_the_count_without_rewriting_ancestry(self):
+        original = self.fail_three()
+        failure = original["admission_retries"]["1"]
+        moved = self.move_unread("unchanged failed work")
+        self.clock.now = failure["retry_at"]
+        self.owner.tick()
+        self.assertEqual(self.read.calls, 4)
+        current = self.owner.load_state()
+        next_failure = current["admission_retries"]["1"]
+        self.assertEqual(next_failure["no_progress_failures"], 4)
+        self.assertEqual(next_failure["retry_at"] - self.clock(), 60)
+        self.assertEqual(next_failure["base"], moved)
+        self.assertNotEqual(next_failure["occurrence_key"], failure["occurrence_key"])
+        self.assertEqual(next_failure["retry_key"], failure["retry_key"])
+        terminal = current["admission_history"][next_failure["attempt_id"]]
+        self.assertEqual(terminal["occurrence_key"], next_failure["occurrence_key"])
+        self.assertEqual(terminal["base"], moved)
+        self.assertEqual(terminal["exit"], 126)
+        self.assertTrue(terminal["read_failed"])
+        self.assertIsNone(terminal["result"])
+        self.assertEqual(terminal["read_failure"]["reason"], "IO_POOL_CAPACITY")
+        basis = terminal["read_failure"]["read_basis"]
+        self.assertEqual(basis["head"], self.head)
+        self.assertEqual(basis["base"], moved)
+        self.assertEqual(basis["consumed"], [{"kind": "PATH", "id": "read/one"}])
+        for identity, occurrence in original["admission_history"].items():
+            self.assertEqual(current["admission_history"][identity], occurrence)
+
+    def test_equal_base_tree_does_not_hide_a_changed_native_merge(self):
+        base, middle = self.repo.main_sha(), self.head
+        self.git("checkout", "-q", "candidate")
+        (self.source / "candidate").write_text("later candidate change\n")
+        self.head = self.commit()
+        self.git("checkout", "-q", "main")
+        self.repo.heads[1] = self.head
+        self.repo.branches["pr-1"] = self.head
+        self.git("push", "-q", "origin", "candidate:refs/pull/1/head")
+        self.assertEqual(self.repo.merge_preview(base, self.head)["status"], "CLEAN")
+        original = self.fail_three()
+        tree = self.git("rev-parse", base + "^{tree}")
+        moved = self.git("commit-tree", tree, "-p", base, "-p", middle, "-m", "changed ancestry")
+        self.git("reset", "--hard", moved)
+        self.git("push", "-q", "origin", "main")
+        self.assertEqual(self.git("rev-parse", moved + "^{tree}"), tree)
+        self.assertEqual(self.repo.watch_digest(moved, ["candidate", "read/one"]),
+                         self.repo.watch_digest(base, ["candidate", "read/one"]))
+        self.assertFalse(self.repo.is_ancestor(self.head, moved))
+        self.assertEqual(self.repo.merge_preview(moved, self.head)["status"], "CONFLICT")
+        tick = self.owner.tick()
+        self.assertEqual(tick["held"], [1])
+        self.assertNotIn(1, tick.get("deferred", []))
+        self.assertEqual(self.read.calls, 3)
+        current = self.owner.load_state()
+        self.assertNotIn("1", current["admission_retries"])
+        self.assertEqual(current["held"]["1"]["native_conflict_base"], moved)
+        later = [entry for identity, entry in current["admission_history"].items()
+                 if identity not in original["admission_history"]]
+        self.assertEqual(len(later), 1)
+        self.assertEqual(later[0]["result"]["checks_not_run"], ["admission_command"])
+        for identity, occurrence in original["admission_history"].items():
+            self.assertEqual(current["admission_history"][identity], occurrence)
+
+    def test_changed_command_and_environment_reopen_selected_reads(self):
+        self.fail_three()
+        self.read.command += " "
+        self.owner.tick()
+        self.assertEqual(self.read.calls, 4)
+        self.assertEqual(self.owner.load_state()["admission_retries"]["1"]["no_progress_failures"], 1)
+        for _ in range(2):
+            self.owner.tick()
+        before = self.read.calls
+        with patch.dict(os.environ, {"SVRF_TEST_RESOURCE_ID": "changed"}):
+            self.owner.tick()
+            self.assertEqual(self.read.calls, before + 1)
+            failure = self.owner.load_state()["admission_retries"]["1"]
+            self.assertEqual(failure["no_progress_failures"], 1)
+            self.assertIsNone(failure["retry_at"])
 
 
 if __name__ == "__main__":
