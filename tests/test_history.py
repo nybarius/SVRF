@@ -353,7 +353,10 @@ class AdmissionConcurrency(Repo):
         for t in threads:
             t.join()
         elapsed = time.monotonic() - started
-        self.assertFalse(errors, errors)
+        self.assertFalse(errors, [
+            (error, getattr(error, "stdout", None), getattr(error, "stderr", None))
+            for error in errors
+        ])
         self.assertLess(elapsed, 0.35)
         self.assertEqual(results["a"]["verdict"], "MERGEABLE")
         self.assertEqual(results["b"]["verdict"], "MERGEABLE")
