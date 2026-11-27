@@ -260,6 +260,12 @@ class CommandLine(unittest.TestCase):
 
 
     def test_worktree_lock_keeps_descendants_until_return_or_termination(self):
+        self._check_command_descendants("worktree-lock")
+
+    def test_exec_keeps_descendants_until_return_or_termination_without_git_or_config(self):
+        self._check_command_descendants("exec")
+
+    def _check_command_descendants(self, operation):
         import fcntl
         import sys
         import test_admission_process as process_tests
@@ -268,16 +274,26 @@ class CommandLine(unittest.TestCase):
         for terminate in (False, True):
             with self.subTest(terminate=terminate), tempfile.TemporaryDirectory() as folder:
                 root = Path(folder)
-                self.config_file(root)
                 clone = root / "clone"
+                prefix = [sys.executable, "-m", "svrf", "--config", str(root / "absent.toml"), operation]
+                if operation == "worktree-lock":
+                    self.config_file(root)
+                    prefix.extend(["--root", str(clone)])
+                else:
+                    clone.mkdir()
+                    git = subprocess.run(["git", "-C", str(clone), "rev-parse", "--git-dir"],
+                                         capture_output=True)
+                    self.assertNotEqual(git.returncode, 0, (git.stdout, git.stderr))
+                self.assertFalse((root / "absent.toml").exists())
                 original = b"the source retained by the original child\n"
                 source = clone / "source.txt"
                 source.write_bytes(original)
-                before = locks._OWN_FDS.copy()
-                with locks.worktree_lock(clone):
-                    descriptor, = locks._OWN_FDS - before
-                    physical = os.fstat(descriptor)
-                    path = os.readlink(f"/proc/self/fd/{descriptor}")
+                if operation == "worktree-lock":
+                    before = locks._OWN_FDS.copy()
+                    with locks.worktree_lock(clone):
+                        descriptor, = locks._OWN_FDS - before
+                        physical = os.fstat(descriptor)
+                        path = os.readlink(f"/proc/self/fd/{descriptor}")
                 ready, release, finished = (root / name for name in ("ready", "release", "finished"))
                 os.mkfifo(release)
                 release_fd = os.open(release, os.O_RDWR | os.O_NONBLOCK)
@@ -306,8 +322,7 @@ class CommandLine(unittest.TestCase):
                     "print('original leader',flush=True)\n"
                     "raise SystemExit(23)\n")
                 proc = subprocess.Popen(
-                    [sys.executable, "-m", "svrf", "worktree-lock", "--root", str(clone), "--",
-                     sys.executable, "-c", command],
+                    [*prefix, "--", sys.executable, "-c", command],
                     cwd=clone, env={**os.environ, "PYTHONPATH": str(ROOT / "src")},
                     stdout=subprocess.PIPE, stderr=subprocess.PIPE)
                 try:
@@ -320,11 +335,12 @@ class CommandLine(unittest.TestCase):
                                         and process_tests.gone(observed["parent"]))
                     self.assertEqual(bytes.fromhex(observed["source"]), original)
                     self.assertIsNone(proc.poll())
-                    with open(path, "a+") as held:
-                        current = os.fstat(held.fileno())
-                        self.assertEqual((current.st_dev, current.st_ino), (physical.st_dev, physical.st_ino))
-                        with self.assertRaises(BlockingIOError):
-                            fcntl.flock(held, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    if operation == "worktree-lock":
+                        with open(path, "a+") as held:
+                            current = os.fstat(held.fileno())
+                            self.assertEqual((current.st_dev, current.st_ino), (physical.st_dev, physical.st_ino))
+                            with self.assertRaises(BlockingIOError):
+                                fcntl.flock(held, fcntl.LOCK_EX | fcntl.LOCK_NB)
                     if terminate:
                         proc.terminate()
                     else:
@@ -338,8 +354,9 @@ class CommandLine(unittest.TestCase):
                     else:
                         self.assertEqual(finished.read_bytes(), original)
                     self.assertTrue(all(process_tests.gone(observed[name]) for name in ("parent", "child")))
-                    with open(path, "a+") as released:
-                        fcntl.flock(released, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    if operation == "worktree-lock":
+                        with open(path, "a+") as released:
+                            fcntl.flock(released, fcntl.LOCK_EX | fcntl.LOCK_NB)
                 finally:
                     os.write(release_fd, b"x")
                     try:
@@ -348,13 +365,29 @@ class CommandLine(unittest.TestCase):
                         os.close(release_fd)
 
     def test_worktree_lock_preserves_literal_argv_status_and_unavailable_root(self):
+        self._check_command_argv("worktree-lock")
+
+    def test_exec_preserves_literal_argv_and_status_without_git_or_config(self):
+        self._check_command_argv("exec")
+
+    def _check_command_argv(self, operation):
         import signal
         import sys
 
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
-            self.config_file(root)
             clone, bindir = root / "clone", root / "bin"
+            prefix = [sys.executable, "-m", "svrf", "--config", str(root / "absent.toml"), operation]
+            if operation == "worktree-lock":
+                self.config_file(root)
+                prefix.extend(["--root", str(clone)])
+            else:
+                clone.mkdir()
+                git = subprocess.run(["git", "-C", str(clone), "rev-parse", "--git-dir"],
+                                     capture_output=True)
+                self.assertNotEqual(git.returncode, 0, (git.stdout, git.stderr))
+            self.assertFalse((root / "absent.toml").exists())
+            prefix.append("--")
             bindir.mkdir()
             original = b"original stdin\x00and stderr\n"
             arguments = ["", "two words", "line\nbreak", "'\";$()"]
@@ -369,8 +402,6 @@ class CommandLine(unittest.TestCase):
             env = {**os.environ, "PYTHONPATH": str(ROOT / "src"),
                    "PATH": str(bindir) + os.pathsep + os.environ["PATH"],
                    "SVRF_ORIGINAL_VALUE": "original environment"}
-            prefix = [sys.executable, "-m", "svrf", "--config", str(root / "absent.toml"),
-                      "worktree-lock", "--root", str(clone), "--"]
             for name, status in (("if", 0), ("NAME=value", 17)):
                 with self.subTest(command=name):
                     executable = bindir / name
@@ -388,16 +419,17 @@ class CommandLine(unittest.TestCase):
                 cwd=clone, env=env, capture_output=True)
             self.assertEqual(signaled.returncode, -signal.SIGTERM, (signaled.stdout, signaled.stderr))
             self.assertEqual((signaled.stdout, signaled.stderr), (b"", b""))
-            sentinel = root / "retained"
-            sentinel.write_bytes(original)
-            unavailable = subprocess.run(
-                [sys.executable, "-m", "svrf", "worktree-lock", "--root", str(root), "--",
-                 sys.executable, "-c", "import pathlib,sys; pathlib.Path(sys.argv[1]).unlink()", str(sentinel)],
-                cwd=clone, env=env, capture_output=True)
-            self.assertEqual(unavailable.returncode, 126, (unavailable.stdout, unavailable.stderr))
-            self.assertTrue(unavailable.stderr.startswith(b"svrf: worktree-lock:"), unavailable.stderr)
-            self.assertEqual(unavailable.stdout, b"")
-            self.assertEqual(sentinel.read_bytes(), original)
+            if operation == "worktree-lock":
+                sentinel = root / "retained"
+                sentinel.write_bytes(original)
+                unavailable = subprocess.run(
+                    [sys.executable, "-m", "svrf", "worktree-lock", "--root", str(root), "--",
+                     sys.executable, "-c", "import pathlib,sys; pathlib.Path(sys.argv[1]).unlink()", str(sentinel)],
+                    cwd=clone, env=env, capture_output=True)
+                self.assertEqual(unavailable.returncode, 126, (unavailable.stdout, unavailable.stderr))
+                self.assertTrue(unavailable.stderr.startswith(b"svrf: worktree-lock:"), unavailable.stderr)
+                self.assertEqual(unavailable.stdout, b"")
+                self.assertEqual(sentinel.read_bytes(), original)
 
 
 class Packaging(unittest.TestCase):
