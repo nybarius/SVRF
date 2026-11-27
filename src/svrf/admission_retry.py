@@ -115,17 +115,24 @@ def failure_retry_key(source: dict, basis: dict | None) -> str | None:
     if source.get("source_status") != "OBSERVED" or not isinstance(basis, dict):
         return None
     prepared, watch = basis.get("prepared") or {}, basis.get("watch") or {}
+    merge, composed = basis.get("merge") or {}, basis.get("composed_watch") or {}
     if (prepared.get("verdict") != "MERGEABLE" or prepared.get("residuals")
             or "checks_not_run" in prepared or not watch.get("watch_digest")
             or basis.get("head") != source.get("head")
             or basis.get("base") != source.get("base")
-            or watch.get("base_sha") != source.get("base")):
+            or watch.get("base_sha") != source.get("base")
+            or merge.get("status") != "CLEAN" or not merge.get("tree")):
+        return None
+    if watch.get("watch") and (composed.get("watch") != watch["watch"]
+                               or composed.get("base_sha") != merge["tree"]
+                               or not composed.get("watch_digest")):
         return None
     return _digest({
         **{key: source.get(key) for key in (
             "pr", "head", "command_fingerprint", "environment_fingerprint")},
         "prepared": prepared,
         "watch": {key: watch.get(key) for key in ("watch", "payload_watch", "watch_digest")},
+        "composed_watch": {key: composed.get(key) for key in ("watch", "watch_digest")},
     })
 
 

@@ -130,7 +130,8 @@ class Admission:
         self.pool = SlotPool(Path(pool), slots) if pool is not None else None
 
     def __call__(self, head: str, base: str, pr: int | None = None, *, cancelled=None) -> dict:
-        value = self._prepare(head, base, cancelled=cancelled)
+        merge_read = {}
+        value = self._prepare(head, base, cancelled=cancelled, merge_read=merge_read)
         if value["verdict"] == "LANDED" or "checks_not_run" in value:
             return value
         consumed = None
@@ -139,7 +140,7 @@ class Admission:
                 lines, consumed = self._command(head, base, pr, cancelled=cancelled)
             except ReadFailed as failure:
                 if failure.read_basis is not None:
-                    failure.read_basis = {**failure.read_basis, "prepared": value}
+                    failure.read_basis = {**failure.read_basis, "prepared": value, "merge": merge_read}
                 raise
             value["residuals"] += lines
             value["verdict"] = "HELD" if value["residuals"] else "MERGEABLE"
@@ -147,14 +148,16 @@ class Admission:
             value["consumed"] = consumed
         return value
 
-    def _prepare(self, head: str, base: str, *, cancelled=None) -> dict:
-        """The original native checks before a configured command may run."""
+    def _prepare(self, head: str, base: str, *, cancelled=None, merge_read: dict | None = None) -> dict:
+        """The original native checks, with optional separate custody of their merge read."""
         if cancelled is not None and cancelled.is_set():
             raise ReadFailed("ADMISSION_CANCELLED")
         if self.git.is_ancestor(head, base):
             return {"verdict": "LANDED", "residuals": [], "changed": []}
         residuals: list[str] = []
         merge = self.git.merge_preview(base, head)
+        if merge_read is not None:
+            merge_read.update(merge)
         if merge["status"] == "FAILED":
             raise ReadFailed(merge.get("reason") or "MERGE_PREVIEW_FAILED")
         residuals += [f"merge:CONFLICT:{p}" for p in merge["conflicts"]]

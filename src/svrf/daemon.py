@@ -597,12 +597,15 @@ class Daemon:
         if (not isinstance(self.admission, Admission) or self.admission.order != "off"
                 or basis.get("head") != head or (not refresh and basis.get("base") != base)):
             return None
+        merge = {} if refresh else basis.get("merge") or {}
         try:
-            prepared = self.admission._prepare(head, base) if refresh else basis.get("prepared") or {}
+            prepared = (self.admission._prepare(head, base, merge_read=merge) if refresh
+                        else basis.get("prepared") or {})
         except ReadFailed:
             return None
         if (prepared.get("verdict") != "MERGEABLE" or prepared.get("residuals")
-                or "checks_not_run" in prepared or not basis.get("consumed")):
+                or "checks_not_run" in prepared or not basis.get("consumed")
+                or merge.get("status") != "CLEAN" or not merge.get("tree")):
             return None
         # The prefix observes head ancestry. Other COMMIT rows do not specify a
         # relation that this owner can safely reconstruct from an identifier.
@@ -612,8 +615,13 @@ class Daemon:
         watch = self._watch(base, self._consumed_paths(value), payloads=self._consumed_payloads(value))
         if not watch.get("watch_digest"):
             return None
+        # Equal base bytes do not determine a merge's selected bytes when ancestry moves.
+        # BASE_NYMISH_PAYLOAD remains a base read; only selected paths need this second watch.
+        composed = self._watch(merge["tree"], watch["watch"])
+        if watch["watch"] and not composed.get("watch_digest"):
+            return None
         return {"head": head, "base": base, "consumed": basis["consumed"],
-                "prepared": prepared, "watch": watch}
+                "prepared": prepared, "merge": merge, "watch": watch, "composed_watch": composed}
 
     def _timed_read(self, row: dict, base: str, cancelled=None):
         started = time.monotonic()
