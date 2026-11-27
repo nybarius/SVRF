@@ -23,11 +23,13 @@ from __future__ import annotations
 import os
 import re
 import subprocess
+import sys
 import threading
 import time
 from contextlib import ExitStack, contextmanager
 from pathlib import Path
 
+from .admission import _stop_command
 from .errors import StopRequested, check_stop
 from .locks import SlotPool, flocked, worktree_lock
 from .redact import redact
@@ -149,17 +151,29 @@ class CommandGate:
         with _phase(seconds, status, "clean"):
             self._git("clean", "-fdq", cwd=slot)
 
-    def _step(self, command: str, cwd: Path, log: Path, env: dict) -> tuple[int, str, float]:
+    def _step(self, command: str, cwd: Path, log: Path, env: dict) -> tuple[int | None, str, float]:
         started = time.monotonic()
-        with open(log, "w", encoding="utf-8") as out:
-            try:
-                done = subprocess.run(["bash", "-c", command], cwd=cwd, stdout=out, stderr=subprocess.STDOUT,
-                                      env=env, timeout=self.timeout)
-                rc = done.returncode
-            except subprocess.TimeoutExpired:
-                rc = None
-        text = redact(log.read_text(encoding="utf-8", errors="replace"), env)
-        log.write_text(text, encoding="utf-8")  # the log on disk is redacted too, not only what we return
+        out = open(log, "w", encoding="utf-8")
+        try:
+            with out:
+                # Use the existing family owner so a leader's exit cannot release
+                # a descendant's worktree, setup lock, or original log.
+                supervisor = str(Path(__file__).with_name("_admission_process.py").resolve())
+                proc = subprocess.Popen([sys.executable, "-I", supervisor, command],
+                                        cwd=cwd, stdout=out, stderr=subprocess.STDOUT,
+                                        env=env, start_new_session=True)
+                try:
+                    rc = proc.wait(timeout=self.timeout)
+                except subprocess.TimeoutExpired:
+                    _stop_command(proc)
+                    rc = None
+                except BaseException:
+                    _stop_command(proc)
+                    raise
+        finally:
+            # Read and redact partial output after waiting on its original owner.
+            text = redact(log.read_text(encoding="utf-8", errors="replace"), env)
+            log.write_text(text, encoding="utf-8")
         return rc, text, round(time.monotonic() - started, 3)
 
     def run(self, base: str, commit: str, label: str = "", *, stop_requested=None) -> dict:
