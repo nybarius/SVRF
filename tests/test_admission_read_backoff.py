@@ -1,5 +1,9 @@
 """Only complete original no-work failures defer another occupied slot."""
+import json
 import os
+import shlex
+import subprocess
+import sys
 from pathlib import Path
 import tempfile
 import time
@@ -9,7 +13,10 @@ from unittest.mock import patch
 from fakes import Clock, DaemonGitHub, DaemonRepo, FakeGate
 from test_admission_progress_projection import beginning, encode_events
 from test_daemon import daemon
+from svrf.admission import Admission
 from svrf.admission_attempt import command_environment
+from svrf.daemon import Daemon
+from svrf.git import RealGit
 from svrf.errors import ReadFailed
 
 
@@ -269,6 +276,129 @@ class ReadBackoff(unittest.TestCase):
         self.assertEqual(tick["retry_later"], [])
         self.assertNotIn("1", self.owner.load_state().get("admission_retries", {}))
         self.assertEqual(self.owner.load_state()["held"]["1"]["reason"], "ADMISSION_HELD")
+
+
+class CountedCommand(Admission):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.calls = 0
+
+    def _run_command(self, *args, **kwargs):
+        self.calls += 1
+        return super()._run_command(*args, **kwargs)
+
+
+class ReadBasisBackoff(unittest.TestCase):
+    def setUp(self):
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        self.root = Path(temporary.name)
+        self.source = self.root / "source"
+        self.source.mkdir()
+        remote = self.root / "remote.git"
+        subprocess.run(["git", "init", "--bare", "-q", str(remote)], check=True)
+        self.git("init", "-q", "-b", "main")
+        self.git("config", "user.name", "test")
+        self.git("config", "user.email", "test@localhost")
+        (self.source / "read").mkdir()
+        (self.source / "read/one").write_text("original dependency\n")
+        (self.source / "unread").write_text("original other file\n")
+        self.commit()
+        self.git("checkout", "-qb", "candidate")
+        (self.source / "candidate").write_text("candidate change\n")
+        self.head = self.commit()
+        self.git("checkout", "-q", "main")
+        self.git("remote", "add", "origin", str(remote))
+        self.git("push", "-q", "origin", "main", "candidate:refs/pull/1/head")
+        self.repo = RealGit(self.source)
+        self.repo.heads = {1: self.head}
+        self.repo.branches = {"pr-1": self.head}
+        self.gh = DaemonGitHub(self.repo)
+        self.read = CountedCommand(self.repo, command=self.command())
+        self.owner = self.make_owner()
+        self.addCleanup(lambda: self.owner.close())
+
+    def git(self, *args):
+        return subprocess.check_output(["git", "-C", str(self.source), *args], text=True).strip()
+
+    def commit(self):
+        self.git("add", "-A")
+        self.git("commit", "-qm", "source occurrence")
+        return self.git("rev-parse", "HEAD")
+
+    def make_owner(self):
+        return Daemon(self.repo, self.gh, FakeGate(self.repo), self.read,
+                      state_dir=self.root / "state", receipts=self.root / "receipts",
+                      clock=time.time, sleep=lambda _: None, repair=False, reland=False,
+                      train_options={"poll_seconds": 0})
+
+    def command(self):
+        project = Path(__file__).resolve().parents[1]
+        code = f"""
+import json, os, subprocess, sys, time
+from pathlib import Path
+sys.path[:0] = {[str(project / "src"), str(project / "tests")]!r}
+from test_admission_progress_projection import beginning, encode_events
+selected = subprocess.check_output(["git", "show", os.environ["SVRF_BASE"] + ":read/one"])
+print(selected.decode(), end="")
+value = {{"schema": "svrf.admission-reads/1",
+          "head": os.environ["SVRF_HEAD"], "base": os.environ["SVRF_BASE"],
+          "consumed": [{{"kind": "PATH", "id": "read/one"}}]}}
+Path(os.environ["SVRF_ADMISSION_READS"]).write_text(json.dumps(value))
+rows = [beginning(pr=int(os.environ["SVRF_PR"]), head=os.environ["SVRF_HEAD"],
+                  base=os.environ["SVRF_BASE"]),
+        {{"kind": "terminal", "disposition": "UNOBSERVED", "exit": 126}}]
+for row in rows:
+    row.update(wall=time.time(), monotonic=time.monotonic())
+Path(os.environ["SVRF_ADMISSION_PROGRESS_FILE"]).write_bytes(encode_events(rows))
+print("IO_POOL_CAPACITY")
+raise SystemExit(126)
+"""
+        return shlex.quote(sys.executable) + " -c " + shlex.quote(code)
+
+    def test_only_a_changed_received_dependency_reopens_a_failed_command(self):
+        for _ in range(3):
+            tick = self.owner.tick()
+            self.assertEqual(tick["retry_later"], [1])
+            self.assertEqual(tick["held"], [])
+        original = self.owner.load_state()
+        failure = original["admission_retries"]["1"]
+        self.assertEqual(failure["no_progress_failures"], 3)
+        self.assertIsNotNone(failure["retry_at"])
+        self.assertEqual(self.read.calls, 3)
+        base = self.repo.main_sha()
+        before = self.repo.watch_digest(base, ["read/one"])
+
+        (self.source / "unread").write_text("unrelated change\n")
+        changed = self.commit()
+        self.git("push", "-q", "origin", "main")
+        self.assertNotEqual(changed, base)
+        self.assertEqual(self.repo.watch_digest(changed, ["read/one"]), before)
+        tick = self.owner.tick()
+        self.assertEqual(self.read.calls, 3, "an unread base move paid the same failed command again")
+        retained = self.owner.load_state()
+        self.assertEqual(retained["admission_retries"]["1"], failure)
+        self.assertEqual(retained["admission_history"], original["admission_history"])
+        self.assertEqual(tick["deferred"], [1])
+
+        self.owner.close()
+        self.owner = self.make_owner()
+        self.owner.tick()
+        self.assertEqual(self.read.calls, 3)
+        self.assertEqual(self.owner.load_state()["admission_retries"]["1"], failure)
+
+        (self.source / "read/one").write_text("changed dependency\n")
+        changed = self.commit()
+        self.git("push", "-q", "origin", "main")
+        self.assertNotEqual(self.repo.watch_digest(changed, ["read/one"]), before)
+        self.owner.tick()
+        self.assertEqual(self.read.calls, 4)
+        current = self.owner.load_state()
+        self.assertEqual(current["admission_retries"]["1"]["no_progress_failures"], 1)
+        self.assertIsNone(current["admission_retries"]["1"]["retry_at"])
+        self.assertEqual(len(current["admission_history"]), len(original["admission_history"]) + 1)
+        for identity, occurrence in original["admission_history"].items():
+            self.assertEqual(current["admission_history"][identity], occurrence)
 
 
 if __name__ == "__main__":
