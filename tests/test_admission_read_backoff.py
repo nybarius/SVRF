@@ -350,7 +350,9 @@ rows = [beginning(pr=int(os.environ["SVRF_PR"]), head=os.environ["SVRF_HEAD"],
         {{"kind": "terminal", "disposition": "UNOBSERVED", "exit": 126}}]
 for row in rows:
     row.update(wall=time.time(), monotonic=time.monotonic())
-Path(os.environ["SVRF_ADMISSION_PROGRESS_FILE"]).write_bytes(encode_events(rows))
+progress = Path(os.environ["SVRF_ADMISSION_PROGRESS_FILE"])
+progress.parent.mkdir(parents=True, exist_ok=True)
+progress.write_bytes(encode_events(rows))
 print("IO_POOL_CAPACITY")
 raise SystemExit(126)
 """
@@ -359,7 +361,8 @@ raise SystemExit(126)
     def test_only_a_changed_received_dependency_reopens_a_failed_command(self):
         for _ in range(3):
             tick = self.owner.tick()
-            self.assertEqual(tick["retry_later"], [1])
+            self.assertEqual(tick["retry_later"], [1],
+                             json.dumps({"tick": tick, "state": self.owner.load_state()}, sort_keys=True))
             self.assertEqual(tick["held"], [])
         original = self.owner.load_state()
         failure = original["admission_retries"]["1"]
