@@ -189,7 +189,6 @@ class Admission:
         the shared clone already has is checked out-able here too."""
         if not (slot / ".git").exists():
             slot.parent.mkdir(parents=True, exist_ok=True)
-            subprocess.run(["git", "-C", str(self.git.root), "worktree", "prune"], capture_output=True)
             subprocess.run(["git", "-C", str(self.git.root), "worktree", "add", "-q", "--detach", "-f",
                             str(slot), "HEAD"], check=True, capture_output=True)
         return slot
