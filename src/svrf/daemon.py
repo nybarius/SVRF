@@ -623,6 +623,22 @@ class Daemon:
         return {"head": head, "base": base, "consumed": basis["consumed"],
                 "prepared": prepared, "merge": merge, "watch": watch, "composed_watch": composed}
 
+    def _admission_hold_watch(self, row: dict, base: str, value: dict, source: dict,
+                              *, head: str | None = None) -> dict:
+        head = row.get("headRefOid") if head is None else head
+        basis = self._failure_basis(head, base, getattr(value, "read_basis", None) or {})
+        watch = (dict(basis["watch"]) if basis is not None else
+                 self._watch(base, self._consumed_paths(value),
+                             payloads=self._consumed_payloads(value)))
+        watch["admission_source"] = self._admission_binding(source)
+        if isinstance(self.admission, Admission):
+            # An unqualified command read keeps its complete original base boundary.
+            watch.update(base_sha=base, admission_read_basis=basis,
+                         admission_read_key=failure_retry_key({
+                             **source, "pr": int(row["number"]), "head": head, "base": base,
+                         }, basis))
+        return watch
+
     def _timed_read(self, row: dict, base: str, cancelled=None):
         started = time.monotonic()
         value, failure = (self._read_admission(row, base) if cancelled is None
@@ -807,9 +823,8 @@ class Daemon:
                 elif decision == "RELAND":
                     self.reland(row, cls, state, summary)
                 elif decision in ("HOLD", "REPAIR"):
-                    watch = self._watch(rbase, self._consumed_paths(value),
-                                        payloads=self._consumed_payloads(value))
-                    watch["admission_source"] = self._admission_binding(item["attempt"].snapshot())
+                    watch = self._admission_hold_watch(
+                        row, rbase, value, item["attempt"].snapshot())
                     if isinstance(rbase, str) and value.get("native_conflict_base") == rbase:
                         watch.update(base_sha=rbase, native_conflict_base=rbase)
                     self.hold(row, "ADMISSION_HELD", state, summary, failing=residuals,
@@ -950,9 +965,9 @@ class Daemon:
     # ---- what a hold depended on
 
     def watch_digest(self, held: dict | None, row: dict, base_now: dict) -> str | None:
-        """The base branch's content over a held head's watched paths now, or None when it
-        cannot be read or the head moved anyway. The base is read once per round and
-        fetched only when it moved since the hold."""
+        """The current observation of a held head's watched inputs, or None when unread.
+        Built-in admission holds share the command's selected base/composition key.
+        The base is read once per round and fetched only when it moved since the hold."""
         if not held or held.get("head") != row.get("headRefOid"):
             return None
         if (isinstance(held.get("native_conflict_base"), str)
@@ -972,11 +987,40 @@ class Daemon:
             # environment too. Reuse the attempt owner's identities, not a new
             # scheduler or a reset of the retained failed occurrence. A legacy
             # hold without that basis has an unobserved read and is checked once.
-            current = self._admission_binding(source_identity(
-                self.admission, int(row["number"]), row.get("headRefOid"), held.get("base_sha")))
+            source = source_identity(
+                self.admission, int(row["number"]), row.get("headRefOid"), held.get("base_sha"))
+            current = self._admission_binding(source)
             if current != self._admission_binding(held.get("admission_source") or {}):
                 return (f"{held.get('watch_digest')}:admission-source:"
                         f"{current['command_fingerprint']}:{current['environment_fingerprint']}")
+            if isinstance(self.admission, Admission) and "admission_read_basis" not in held:
+                # Old holds did not retain the native composition, including
+                # subclasses whose unchanged __call__ delegates to Admission.
+                return f"{held.get('watch_digest')}:admission-read-unobserved"
+            if "admission_read_basis" in held:
+                try:
+                    if base_now["sha"] is None:
+                        base_now["sha"] = self.git.main_sha()
+                    if base_now["sha"] == held.get("base_sha"):
+                        return held.get("watch_digest")
+                    if not base_now.get("fetched", True):
+                        self.git.fetch([])
+                        base_now["fetched"] = True
+                except ReadFailed:
+                    return None
+                # A reland was checked at its rebuilt head, not the public PR head.
+                head = held.get("repair_head") or row.get("headRefOid")
+                basis = self._failure_basis(
+                    head, base_now["sha"], held.get("admission_read_basis") or {}, refresh=True)
+                key = failure_retry_key({
+                    **source, "pr": int(row["number"]), "head": head, "base": base_now["sha"],
+                }, basis)
+                if key is not None and key == held.get("admission_read_key"):
+                    held["base_sha"] = base_now["sha"]
+                    return held.get("watch_digest")
+                # None means no new observation to held_retry; a moved complete
+                # base must instead reopen an unqualified or changed command read.
+                return f"{held.get('watch_digest')}:admission-base:{base_now['sha']}"
         if not (held.get("watch") or held.get("payload_watch")):
             return None
         digest = getattr(self.git, "watch_digest", None)
@@ -1365,9 +1409,8 @@ class Daemon:
         residuals = list(value.get("residuals") or [])
         if value.get("verdict") == "HELD" and residuals:
             self.hold(row, "RELAND_ADMISSION_HELD", state, summary, failing=residuals, cls=cls,
-                      extra={**self._watch(base_sha, self._consumed_paths(value),
-                                           payloads=self._consumed_payloads(value)),
-                             "admission_source": self._admission_binding(admission_source or {}),
+                      extra={**self._admission_hold_watch(
+                          row, base_sha, value, admission_source or {}, head=final),
                              "repair_head": final})
             return
         if (value.get("verdict") != "MERGEABLE" or residuals

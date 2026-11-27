@@ -114,6 +114,14 @@ def _stop_command(proc: subprocess.Popen) -> None:
             return
 
 
+class _AdmissionResult(dict):
+    """Keep one native observation in custody without changing the public verdict."""
+
+    def __init__(self, value: dict, read_basis: dict):
+        super().__init__(value)
+        self.read_basis = read_basis
+
+
 class Admission:
     """`pool`/`slots`: when given, the admission command runs in its own worktree slot
     (the same shape as the gate's `CommandGate`) instead of the clone's single shared
@@ -136,6 +144,7 @@ class Admission:
             return value
         consumed = None
         if self.command:
+            prepared = {**value, "residuals": list(value["residuals"])}
             try:
                 lines, consumed = self._command(head, base, pr, cancelled=cancelled)
             except ReadFailed as failure:
@@ -146,6 +155,11 @@ class Admission:
             value["verdict"] = "HELD" if value["residuals"] else "MERGEABLE"
         if consumed is not None:
             value["consumed"] = consumed
+            if value["verdict"] == "HELD":
+                return _AdmissionResult(value, {
+                    "head": head, "base": base, "consumed": consumed,
+                    "prepared": prepared, "merge": merge_read,
+                })
         return value
 
     def _prepare(self, head: str, base: str, *, cancelled=None, merge_read: dict | None = None) -> dict:
