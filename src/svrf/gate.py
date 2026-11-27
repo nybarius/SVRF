@@ -29,7 +29,7 @@ from contextlib import ExitStack, contextmanager
 from pathlib import Path
 
 from .errors import StopRequested, check_stop
-from .locks import SlotPool, flocked
+from .locks import SlotPool, flocked, worktree_lock
 from .redact import redact
 from .rules import gate_infra_failure
 
@@ -129,7 +129,8 @@ class CommandGate:
             status.update(index_flags="skipped", checkout="skipped")
             with _phase(seconds, status, "worktree_create"):
                 slot.parent.mkdir(parents=True, exist_ok=True)
-                self._git("worktree", "add", "-q", "--detach", "-f", str(slot), commit)
+                with worktree_lock(self.clone):
+                    self._git("worktree", "add", "-q", "--detach", "-f", str(slot), commit)
         else:
             status["worktree_create"] = "skipped"
             with _phase(seconds, status, "index_flags"):

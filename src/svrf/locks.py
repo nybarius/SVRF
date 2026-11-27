@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import fcntl
 import os
+import subprocess
 import threading
 import time
 from contextlib import contextmanager
@@ -74,6 +75,16 @@ def owner_lock(path: Path | str):
         return
     with flocked(path) as owned:
         yield owned
+
+
+@contextmanager
+def worktree_lock(root: Path | str):
+    """Hold the shared Git registration while one original worktree add completes."""
+    root = Path(root).expanduser().resolve()
+    common = subprocess.run(["git", "-C", str(root), "rev-parse", "--git-common-dir"],
+                            check=True, capture_output=True, text=True).stdout.strip()
+    with flocked(root / common / "svrf-worktree.lock", block=True):
+        yield
 
 
 class SlotPool:
