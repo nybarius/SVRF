@@ -82,8 +82,8 @@ def worktree_lock(root: Path | str):
     """Hold the shared Git registration while one original worktree add completes."""
     root = Path(root).expanduser().resolve()
     common = subprocess.run(["git", "-C", str(root), "rev-parse", "--git-common-dir"],
-                            check=True, capture_output=True, text=True).stdout.strip()
-    with flocked(root / common / "svrf-worktree.lock", block=True):
+                            check=True, capture_output=True).stdout.removesuffix(b"\n")
+    with flocked(root / os.fsdecode(common) / "svrf-worktree.lock", block=True):
         yield
 
 
