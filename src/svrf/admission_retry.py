@@ -110,6 +110,25 @@ def source_identity(admission, pr: int, head: str, base: str, inputs: dict | Non
     }
 
 
+def failure_retry_key(source: dict, basis: dict | None) -> str | None:
+    """Project an observed failed command's reads without rewriting its occurrence."""
+    if source.get("source_status") != "OBSERVED" or not isinstance(basis, dict):
+        return None
+    prepared, watch = basis.get("prepared") or {}, basis.get("watch") or {}
+    if (prepared.get("verdict") != "MERGEABLE" or prepared.get("residuals")
+            or "checks_not_run" in prepared or not watch.get("watch_digest")
+            or basis.get("head") != source.get("head")
+            or basis.get("base") != source.get("base")
+            or watch.get("base_sha") != source.get("base")):
+        return None
+    return _digest({
+        **{key: source.get(key) for key in (
+            "pr", "head", "command_fingerprint", "environment_fingerprint")},
+        "prepared": prepared,
+        "watch": {key: watch.get(key) for key in ("watch", "payload_watch", "watch_digest")},
+    })
+
+
 def retain_failure(state: dict, attempt: dict) -> None:
     """Count one terminal UUID once; unobserved work never proves no progress."""
     rows = state.setdefault("admission_retries", {})
@@ -121,9 +140,6 @@ def retain_failure(state: dict, attempt: dict) -> None:
         rows.pop(number, None)
         return
     reason = (attempt.get("read_failure") or {}).get("reason")
-    same = previous.get("occurrence_key") == attempt.get("occurrence_key")
-    if not same:
-        previous = {}
     progress = attempt.get("progress") or {}
     summary = progress.get("summary") or {}
     complete = (
@@ -134,6 +150,12 @@ def retain_failure(state: dict, attempt: dict) -> None:
         and isinstance(summary.get("completed_work_ids"), list)
         and (attempt.get("exit") is None or summary.get("exit") == attempt["exit"])
     )
+    basis = (attempt.get("read_failure") or {}).get("read_basis") if complete else None
+    projected = failure_retry_key(attempt, basis)
+    same = (previous.get("retry_key") or previous.get("occurrence_key")) == (
+        projected or attempt.get("occurrence_key"))
+    if not same:
+        previous = {}
     known = set(previous.get("completed_work_ids") or [])
     count, retry_at, current_digest = None, None, None
     unknown_count, unknown_reason, backoff_kind = 0, None, None
@@ -163,6 +185,7 @@ def retain_failure(state: dict, attempt: dict) -> None:
             "command_fingerprint", "environment_fingerprint", "source_status")
     rows[number] = {
         **{key: attempt.get(key) for key in keys},
+        **({"retry_key": projected, "read_basis": basis} if projected is not None else {}),
         "attempt_id": attempt_id, "reason": reason,
         "last_terminal_at": attempt.get("terminal_at"), "clock": "unix",
         "read_failure_count": previous.get("read_failure_count", 0) + 1,

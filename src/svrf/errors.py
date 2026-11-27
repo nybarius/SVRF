@@ -15,9 +15,10 @@ from .redact import redact
 class ReadFailed(Exception):
     """A read that could not be made. Never a conflict, never a hold: retry later."""
 
-    def __init__(self, reason: str):
+    def __init__(self, reason: str, *, read_basis: dict | None = None):
         super().__init__(reason)
         self.reason = reason
+        self.read_basis = read_basis
 
 
 class StopRequested(ReadFailed):

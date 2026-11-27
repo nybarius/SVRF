@@ -285,6 +285,8 @@ class AdmissionAttempt:
                             read_failure=None if failure is None else {
                                 "type": type(failure).__name__,
                                 "reason": str(getattr(failure, "reason", failure)),
+                                **({"read_basis": failure.read_basis}
+                                   if isinstance(failure, ReadFailed) and failure.read_basis is not None else {}),
                             }, admission_seconds=seconds)
             return value, failure, seconds
         except BaseException as error:

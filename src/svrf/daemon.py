@@ -47,7 +47,7 @@ from typing import Callable
 from . import rules
 from .admission import Admission
 from .admission_attempt import AdmissionAttempt
-from .admission_retry import retain_failure, source_identity
+from .admission_retry import failure_retry_key, retain_failure, source_identity
 from .train_events import project_receipt
 from .errors import RateLimited, ReadFailed
 from .locks import owner_lock
@@ -471,8 +471,12 @@ class Daemon:
             previous = retries[str(number)]
             source = source_identity(self.admission, number, row.get("headRefOid"), base,
                                      self.round_inputs.get(number))
+            key = source["occurrence_key"]
+            if previous.get("read_basis") is not None:
+                basis = self._failure_basis(row.get("headRefOid"), base, previous["read_basis"], refresh=True)
+                key = failure_retry_key({**source, "pr": number, "head": row.get("headRefOid"), "base": base}, basis)
             if (source["source_status"] == "OBSERVED"
-                    and source["occurrence_key"] == previous.get("occurrence_key")
+                    and key == (previous.get("retry_key") or previous.get("occurrence_key"))
                     and previous.get("backoff_kind") in ("NO_USEFUL_PROGRESS", "REPEATED_UNOBSERVED")):
                 deferred.add(number)
                 reason = ("REPEATED_UNOBSERVED_BACKOFF" if previous["backoff_kind"] == "REPEATED_UNOBSERVED"
@@ -588,10 +592,37 @@ class Daemon:
                 }
                 cancelled.set()
 
+    def _failure_basis(self, head: str, base: str, basis: dict, *, refresh=False) -> dict | None:
+        # History-order dependencies have no watch projection here. Keep their full base.
+        if (not isinstance(self.admission, Admission) or self.admission.order != "off"
+                or basis.get("head") != head or (not refresh and basis.get("base") != base)):
+            return None
+        try:
+            prepared = self.admission._prepare(head, base) if refresh else basis.get("prepared") or {}
+        except ReadFailed:
+            return None
+        if (prepared.get("verdict") != "MERGEABLE" or prepared.get("residuals")
+                or "checks_not_run" in prepared or basis.get("consumed") is None):
+            return None
+        # The prefix observes head ancestry. Other COMMIT rows do not specify a
+        # relation that this owner can safely reconstruct from an identifier.
+        if any(row["kind"] == "COMMIT" and row["id"] != head for row in basis["consumed"]):
+            return None
+        value = {**prepared, "consumed": basis["consumed"]}
+        watch = self._watch(base, self._consumed_paths(value), payloads=self._consumed_payloads(value))
+        if not watch.get("watch_digest"):
+            return None
+        return {"head": head, "base": base, "consumed": basis["consumed"],
+                "prepared": prepared, "watch": watch}
+
     def _timed_read(self, row: dict, base: str, cancelled=None):
         started = time.monotonic()
         value, failure = (self._read_admission(row, base) if cancelled is None
                           else self._read_admission(row, base, cancelled))
+        if isinstance(failure, ReadFailed) and failure.read_basis is not None:
+            basis = self._failure_basis(row.get("headRefOid"), base, failure.read_basis)
+            if basis is not None:
+                failure.read_basis = basis
         return value, failure, time.monotonic() - started
 
     def _submit(self, rows: list[dict], base: str) -> None:
