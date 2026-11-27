@@ -314,6 +314,7 @@ class ReadBasisBackoff(unittest.TestCase):
         self.repo.heads = {1: self.head}
         self.repo.branches = {"pr-1": self.head}
         self.gh = DaemonGitHub(self.repo)
+        self.clock = Clock()
         self.read = CountedCommand(self.repo, command=self.command())
         self.owner = self.make_owner()
         self.addCleanup(lambda: self.owner.close())
@@ -329,7 +330,7 @@ class ReadBasisBackoff(unittest.TestCase):
     def make_owner(self):
         return Daemon(self.repo, self.gh, FakeGate(self.repo), self.read,
                       state_dir=self.root / "state", receipts=self.root / "receipts",
-                      clock=time.time, sleep=lambda _: None, repair=False, reland=False,
+                      clock=self.clock, sleep=self.clock.sleep, repair=False, reland=False,
                       train_options={"poll_seconds": 0})
 
     def command(self):
