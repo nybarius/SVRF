@@ -28,6 +28,7 @@ class Drain(unittest.TestCase):
         try:
             assert owner.tick()['inflight'] == [1]
             pool = owner._pool
+            future = owner.inflight[1]['future']
             with self.assertRaisesRegex(RuntimeError, 'ADMISSIONS_STILL_RUNNING'):
                 owner.close()
             repo.commits['h2'] = {'lanes': frozenset({0, 2}), 'parents': ('c0',)}
@@ -35,8 +36,9 @@ class Drain(unittest.TestCase):
             assert owner.tick(drain=True)['inflight'] == [1]
             assert admission.calls == ['h1']
             admission.release.set()
+            future.result()
             result = owner.tick(drain=True)
-            assert result['inflight'] == [] and gh.merged == []
+            assert result['inflight'] == [] and gh.merged == [], (result, gh.merged)
             assert admission.calls == ['h1']
             received = json.loads(Path(result['receipt']).read_text())
             assert received['drained'][0]['head'] == 'h1'
