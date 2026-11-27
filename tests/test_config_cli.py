@@ -202,6 +202,63 @@ class CommandLine(unittest.TestCase):
             self.assertIn(word, done.stdout)
 
 
+    def test_worktree_lock_keeps_the_original_registration_during_bare_and_linked_adds(self):
+        import sys
+        from svrf import locks
+
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            self.config_file(root)
+            seed = root / "clone"
+            original = b"the original committed source\n"
+            (seed / "source.txt").write_bytes(original)
+            env = {**os.environ, "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t",
+                   "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t",
+                   "PYTHONPATH": str(ROOT / "src")}
+            subprocess.run(["git", "-C", str(seed), "add", "source.txt"], check=True, env=env)
+            subprocess.run(["git", "-C", str(seed), "commit", "-qm", "base"], check=True, env=env)
+            head = subprocess.check_output(["git", "-C", str(seed), "rev-parse", "HEAD"]).strip()
+            bare, linked = root / "common.git \r\n", root / "linked"
+            subprocess.run(["git", "clone", "-q", "--bare", str(seed), str(bare)], check=True)
+            subprocess.run(["git", "-C", str(bare), "worktree", "add", "-q", "--detach",
+                            str(linked), head.decode()], check=True)
+            before = locks._OWN_FDS.copy()
+            with locks.worktree_lock(bare):
+                descriptor, = locks._OWN_FDS - before
+                physical = os.fstat(descriptor)
+                path = os.readlink(f"/proc/self/fd/{descriptor}")
+            command = (
+                "import fcntl,json,os,subprocess,sys\n"
+                "with open(sys.argv[1], 'a+') as observed:\n"
+                " physical=os.fstat(observed.fileno())\n"
+                " try: fcntl.flock(observed,fcntl.LOCK_EX|fcntl.LOCK_NB)\n"
+                " except BlockingIOError: held=True\n"
+                " else:\n"
+                "  held=False\n"
+                "  fcntl.flock(observed,fcntl.LOCK_UN)\n"
+                " print(json.dumps({'held':held,'identity':[physical.st_dev,physical.st_ino]}),flush=True)\n"
+                " done=subprocess.run(['git','worktree','add','-q','-f','--detach',sys.argv[2],sys.argv[3]])\n"
+                " raise SystemExit(done.returncode)\n")
+            for owner in (bare, linked):
+                with self.subTest(owner=owner):
+                    checker = root / ("checker " + owner.name)
+                    done = subprocess.run(
+                        [sys.executable, "-m", "svrf", "--config", str(root / "absent.toml"),
+                         "worktree-lock", "--root", str(owner), "--", sys.executable, "-c",
+                         command, path, str(checker), head.decode()],
+                        cwd=owner, env=env, capture_output=True, text=True)
+                    self.assertEqual(done.returncode, 0, (done.stdout, done.stderr))
+                    received = json.loads(done.stdout)
+                    self.assertTrue(received["held"], received)
+                    self.assertEqual(received["identity"], [physical.st_dev, physical.st_ino])
+                    self.assertEqual(subprocess.check_output(
+                        ["git", "-C", str(checker), "rev-parse", "HEAD"]).strip(), head)
+                    self.assertEqual((checker / "source.txt").read_bytes(), original)
+                    self.assertEqual(subprocess.check_output(
+                        ["git", "-C", str(linked), "rev-parse", "HEAD"]).strip(), head)
+                    self.assertEqual((linked / "source.txt").read_bytes(), original)
+
+
 class Packaging(unittest.TestCase):
     def test_the_systemd_service_runs_one_round_with_explicit_paths(self):
         service = (ROOT / "systemd" / "svrf.service").read_text(encoding="utf-8")
