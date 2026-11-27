@@ -13,13 +13,16 @@
     svrf mcp                 an MCP server over stdio for coding agents (see docs/AGENTS.md)
     svrf dashboard --receipts DIR --out DIR   a static site from round receipts (no config needed)
     svrf worktree-lock --root ROOT -- COMMAND ...   hold shared Git registration for a command
+    svrf process-command -- COMMAND ...   retain the command's descendants through settlement
 
 Every command reads `--config` (default: $SVRF_CONFIG, else ./svrf.toml); `init` (which
-creates that file), `dashboard` (which reads only receipts), and `worktree-lock`
-(which reads the supplied Git root) are the exceptions.
+creates that file), `dashboard` (which reads only receipts), `worktree-lock`
+(which reads the supplied Git root), and `process-command` (which receives the supplied
+command and arguments) are the exceptions.
 Exit codes: 0 ok, 1 a landed tree did not match its gated tree, 2 bad configuration,
-3 another train owns the lock. `worktree-lock` preserves its command's status and
-returns 126 when registration or command custody cannot be acquired.
+3 another train owns the lock. `worktree-lock` and `process-command` preserve their
+command's status and return 126 when command custody cannot be acquired.
+`worktree-lock` also returns 126 when registration cannot be acquired.
 """
 
 from __future__ import annotations
@@ -244,14 +247,18 @@ def main(argv: list[str] | None = None, *, github=None) -> int:
     registration = sub.add_parser("worktree-lock", help="hold shared Git registration for a command")
     registration.add_argument("--root", required=True, help="an existing Git working tree or bare repository")
     registration.add_argument("argv", nargs=argparse.REMAINDER, help="command and arguments after --")
+    process = sub.add_parser("process-command", help="retain a command's descendants through settlement")
+    process.add_argument("argv", nargs=argparse.REMAINDER, help="command and arguments after --")
     args = ap.parse_args(argv)
 
-    if args.command == "worktree-lock":
+    if args.command in ("worktree-lock", "process-command"):
         from . import _admission_process
 
         command = args.argv[1:] if args.argv[:1] == ["--"] else args.argv
         if not command:
-            ap.error("worktree-lock requires a command after --")
+            ap.error(f"{args.command} requires a command after --")
+        if args.command == "process-command":
+            return _admission_process.main(["exec -- " + shlex.join(command)])
         try:
             with worktree_lock(args.root):
                 # This fresh CLI process is the original family owner. Keep the
